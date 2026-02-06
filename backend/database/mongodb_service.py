@@ -18,6 +18,15 @@ class MongoDBService:
     def __init__(self):
         self.db = get_db()
     
+    def __enter__(self):
+        """Context manager entry"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit"""
+        # MongoDB doesn't need explicit session cleanup for basic operations
+        return False
+    
     # === Order Operations ===
     
     def get_orders(self, limit: int = 100) -> List[Dict]:

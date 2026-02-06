@@ -55,22 +55,42 @@ ROLE_PERMISSIONS = {
     "admin": [
         "read:all", "write:all", "delete:all",
         "manage:users", "manage:system", "manage:agents",
-        "view:dashboard", "view:analytics", "manage:alerts"
+        "view:dashboard", "view:analytics", "manage:alerts",
+        # Explicit CRM permissions
+        "read:accounts", "write:accounts", "delete:accounts",
+        "read:contacts", "write:contacts", "delete:contacts",
+        "read:leads", "write:leads", "delete:leads",
+        "read:opportunities", "write:opportunities", "delete:opportunities",
+        "read:activities", "write:activities", "delete:activities",
+        "read:tasks", "write:tasks", "delete:tasks"
     ],
     "manager": [
         "read:orders", "read:inventory", "read:shipments",
         "write:orders", "write:inventory", "approve:reviews",
         "view:dashboard", "view:analytics", "manage:alerts",
-        "run:agents"
+        "run:agents",
+        # CRM permissions for managers
+        "read:accounts", "write:accounts",
+        "read:contacts", "write:contacts",
+        "read:leads", "write:leads",
+        "read:opportunities", "write:opportunities",
+        "read:activities", "write:activities",
+        "read:tasks", "write:tasks"
     ],
     "operator": [
         "read:orders", "read:inventory", "read:shipments",
         "write:orders", "update:shipments",
-        "view:dashboard", "create:reviews"
+        "view:dashboard", "create:reviews",
+        # Limited CRM permissions
+        "read:accounts", "read:contacts", "read:leads",
+        "write:activities", "read:tasks", "write:tasks"
     ],
     "viewer": [
         "read:orders", "read:inventory", "read:shipments",
-        "view:dashboard"
+        "view:dashboard",
+        # Read-only CRM access
+        "read:accounts", "read:contacts", "read:leads",
+        "read:opportunities", "read:activities", "read:tasks"
     ]
 }
 
@@ -241,12 +261,30 @@ class AuthSystem:
     def require_permission(self, required_permission: str):
         """Decorator to require specific permission"""
         def permission_checker(current_user: User = Depends(self.get_current_user)):
-            if required_permission not in current_user.permissions:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Permission required: {required_permission}"
-                )
-            return current_user
+            # Check for exact permission match
+            if required_permission in current_user.permissions:
+                return current_user
+            
+            # Check for wildcard permissions (e.g., "write:all" matches "write:accounts")
+            permission_parts = required_permission.split(':')
+            if len(permission_parts) == 2:
+                action, resource = permission_parts
+                wildcard = f"{action}:all"
+                if wildcard in current_user.permissions:
+                    return current_user
+            
+            # Check if user has global "read:all", "write:all", or "delete:all"
+            for perm in current_user.permissions:
+                if perm in ["read:all", "write:all", "delete:all"]:
+                    perm_action = perm.split(':')[0]
+                    required_action = permission_parts[0] if len(permission_parts) == 2 else None
+                    if perm_action == required_action:
+                        return current_user
+            
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: {required_permission}"
+            )
         return permission_checker
     
     def require_role(self, required_role: str):
