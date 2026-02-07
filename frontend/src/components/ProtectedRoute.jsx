@@ -1,10 +1,11 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/MongoAuthContext';
 import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -19,6 +20,19 @@ const ProtectedRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/auth/login" replace />;
+  }
+
+  const role = user?.role;
+  const isCustomerPortal = location.pathname.startsWith('/customer-portal');
+
+  // Customers are RESTRICTED to customer portal only
+  if (role === 'customer' && !isCustomerPortal) {
+    return <Navigate to="/customer-portal" replace />;
+  }
+
+  // Non-customers should NOT use the customer portal
+  if (role !== 'customer' && isCustomerPortal) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

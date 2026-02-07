@@ -13,9 +13,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { LoadingSpinner } from '../components/common/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import MetricCard from '../components/common/charts/MetricCard';
-import { logisticsAPI } from '../services/api/logisticsAPI';
-import { inventoryAPI } from '../services/api/inventoryAPI';
-import { agentAPI } from '../services/api/agentAPI';
+import { orderAPI } from '../services/api/orderAPI';
+import { productAPI } from '../services/api/productAPI';
 import { formatDate } from '@/utils/dateUtils';
 
 export const Logistics = () => {
@@ -54,39 +53,27 @@ export const Logistics = () => {
 
       // Fetch orders
       try {
-        const ordersResponse = await logisticsAPI.getOrders({ limit: 100 });
-        setOrders(ordersResponse.data?.orders || []);
+        const ordersResponse = await orderAPI.getOrders({ limit: 100 });
+        setOrders(ordersResponse.data?.data?.orders || []);
       } catch (err) {
         console.warn('Failed to fetch orders:', err);
       }
 
-      // Fetch shipments
-      try {
-        const shipmentsResponse = await logisticsAPI.getShipments();
-        setShipments(shipmentsResponse.data?.shipments || shipmentsResponse.data || []);
-      } catch (err) {
-        console.warn('Failed to fetch shipments:', err);
-      }
-
       // Fetch inventory
       try {
-        const inventoryResponse = await inventoryAPI.getInventory();
-        const inventory = inventoryResponse.data?.inventory || inventoryResponse.data || [];
-        setInventoryData(inventory.slice(0, 15).map(item => ({
-          ProductID: item.ProductID || item.product_id,
-          CurrentStock: item.CurrentStock || item.current_stock || 0
+        const inventoryResponse = await productAPI.getProducts({ limit: 1000, bustCache: true });
+        const products = inventoryResponse.data?.data?.products || [];
+        setInventoryData(products.slice(0, 15).map(p => ({
+          ProductID: p.sku,
+          CurrentStock: p.stockQuantity || 0
         })));
       } catch (err) {
         console.warn('Failed to fetch inventory:', err);
       }
 
-      // Fetch agent activity
-      try {
-        const activityResponse = await logisticsAPI.getAgentLogs({ limit: 10 });
-        setAgentActivity(activityResponse.data?.logs || activityResponse.data || []);
-      } catch (err) {
-        console.warn('Failed to fetch agent activity:', err);
-      }
+      // Legacy sections not backed by MongoDB-only backend
+      setShipments([]);
+      setAgentActivity([]);
 
       // Calculate metrics from fetched data
       const processingOrdersCount = orders.filter(o => o.Status === 'Processing' || o.status === 'Processing').length;
@@ -105,15 +92,21 @@ export const Logistics = () => {
 
   const getStatusVariant = (status) => {
     const variants = {
-      'Processing': 'info',
-      'Shipped': 'success',
-      'Cancelled': 'destructive',
-      'out_for_delivery': 'info',
-      'created': 'warning',
-      'picked_up': 'info',
-      'delivered': 'success',
+      PLACED: 'warning',
+      DISPATCHED: 'info',
+      DELIVERED: 'success',
     };
     return variants[status] || 'default';
+  };
+
+  const handleDispatchOrder = async (orderId) => {
+    try {
+      await orderAPI.dispatchOrder(orderId);
+      fetchAllData();
+    } catch (err) {
+      console.error('Failed to dispatch order:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to dispatch order');
+    }
   };
 
   const handleRunProcurementAgent = async () => {
@@ -168,9 +161,9 @@ export const Logistics = () => {
   // Overview metrics (computed from real data)
   const overviewMetrics = {
     totalOrders: orders.length,
-    totalShipments: shipments.length,
-    processingOrders: orders.filter(o => (o.Status === 'Processing' || o.status === 'Processing')).length,
-    inTransitShipments: shipments.filter(s => (s.status === 'out_for_delivery' || s.status === 'picked_up')).length,
+    totalShipments: 0,
+    processingOrders: orders.filter(o => o.status === 'PLACED').length,
+    inTransitShipments: orders.filter(o => o.status === 'DISPATCHED').length,
     totalInventory: inventoryData.reduce((sum, item) => sum + (item.CurrentStock || item.current_stock || 0), 0),
     agentActions: agentActivity.length,
   };
@@ -611,27 +604,44 @@ export const Logistics = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>OrderID</TableHead>
+                    <TableHead>Order</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>CustomerID</TableHead>
-                    <TableHead>ProductID</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>OrderDate</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Placed At</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.map((order, index) => (
-                    <TableRow key={order.OrderID}>
-                      <TableCell className="font-medium">{order.OrderID}</TableCell>
+                  {orders.map((order) => (
+                    <TableRow key={order._id}>
+                      <TableCell className="font-medium">{order.orderNumber}</TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(order.Status)}>
-                          {order.Status}
+                        <Badge variant={getStatusVariant(order.status)}>
+                          {order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{order.CustomerID}</TableCell>
-                      <TableCell>{order.ProductID}</TableCell>
-                      <TableCell>{order.Quantity}</TableCell>
-                      <TableCell>{formatDateTime(order.OrderDate)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{order.customerId?.name || 'Customer'}</span>
+                          <span className="text-xs text-muted-foreground">{order.customerId?.email || ''}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {(order.items || []).map((it) => `${it.sku}×${it.quantity}`).join(', ')}
+                      </TableCell>
+                      <TableCell>₹{Number(order.totalAmount || 0).toFixed(2)}</TableCell>
+                      <TableCell>{formatDateTime(order.tracking?.placedAt || order.createdAt)}</TableCell>
+                      <TableCell className="text-right">
+                        {order.status === 'PLACED' ? (
+                          <Button size="sm" onClick={() => handleDispatchOrder(order._id)}>
+                            Dispatch
+                          </Button>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

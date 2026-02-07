@@ -12,7 +12,7 @@ import { Alert } from '../components/common/ui/Alert';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/common/ui/Table';
 import { LoadingSpinner } from '../components/common/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { inventoryAPI } from '../services/api/inventoryAPI';
+import { productAPI } from '../services/api/productAPI';
 
 export const Inventory = () => {
   const [loading, setLoading] = useState(true);
@@ -35,23 +35,14 @@ export const Inventory = () => {
       setError(null);
 
       // Fetch inventory
-      const inventoryResponse = await inventoryAPI.getInventory();
-      const inventoryData = inventoryResponse.data?.inventory || inventoryResponse.data || [];
-      
-      // Fetch low stock items
-      let lowStockData = [];
-      try {
-        const lowStockResponse = await inventoryAPI.getLowStock();
-        lowStockData = lowStockResponse.data?.low_stock_items || lowStockResponse.data || [];
-      } catch (err) {
-        console.warn('Failed to fetch low stock:', err);
-      }
+      const inventoryResponse = await productAPI.getProducts({ limit: 1000, bustCache: true });
+      const inventoryData = inventoryResponse.data?.data?.products || [];
 
       // Transform inventory data
       const formattedInventory = inventoryData.map(item => {
-        const currentStock = item.CurrentStock || item.current_stock || 0;
-        const reorderPoint = item.ReorderPoint || item.reorder_point || 0;
-        const unitCost = item.UnitCost || item.unit_cost || 0;
+        const currentStock = item.stockQuantity || 0;
+        const reorderPoint = item.minThreshold || 0;
+        const unitCost = item.costPrice || 0;
         const totalValue = currentStock * unitCost;
         
         let status = 'in_stock';
@@ -62,15 +53,15 @@ export const Inventory = () => {
         }
 
         return {
-          id: item.ProductID || item.product_id || item.id,
-          productName: item.ProductName || item.product_name || item.name || 'Unknown',
-          productId: item.ProductID || item.product_id || item.id,
+          id: item._id,
+          productName: item.name || 'Unknown',
+          productId: item.sku || item._id,
           currentStock,
           reorderPoint,
           unitCost,
           totalValue,
           status,
-          lastRestocked: item.LastRestocked ? new Date(item.LastRestocked) : new Date()
+          lastRestocked: item.updatedAt ? new Date(item.updatedAt) : new Date()
         };
       });
 

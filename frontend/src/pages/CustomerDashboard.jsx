@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Package, Search, Filter, Grid, List, Plus, Minus, Check } from 'lucide-react';
 import Button from '../components/common/ui/Button';
 import Card from '../components/common/ui/Card';
-import { API_BASE_URL } from '../utils/constants';
+import { productAPI } from '../services/api/productAPI';
+import { orderAPI } from '../services/api/orderAPI';
 
 const CustomerDashboard = () => {
   const [products, setProducts] = useState([]);
@@ -18,13 +19,64 @@ const CustomerDashboard = () => {
     fetchOrderHistory();
   }, []);
 
+  const normalizeProduct = (p) => {
+    return {
+      id: p._id || p.id,
+      name: p.name || 'Unnamed Product',
+      description: p.description || '',
+      category: p.category || '',
+      price: Number(p.sellingPrice || p.price || 0),
+      stock: Number(p.stockQuantity || p.stock || 0),
+      image_url: p.image_url || p.imageUrl || '/api/placeholder/400/300',
+    };
+  };
+
+  const normalizeOrder = (o) => {
+    return {
+      id: o._id || o.id,
+      created_at: o.createdAt || o.created_at,
+      total_amount: Number(o.totalAmount || o.total_amount || 0),
+      status: String(o.status || 'PLACED').toUpperCase(),
+    };
+  };
+
+  const getOrderStatusLabel = (status) => {
+    if (status === 'PLACED') return 'PLACED';
+    if (status === 'DISPATCHED') return 'DISPATCHED';
+    if (status === 'DELIVERED') return 'DELIVERED';
+    return status;
+  };
+
+  const getOrderStatusClass = (status) => {
+    if (status === 'DELIVERED') return 'text-success';
+    if (status === 'PLACED') return 'text-warning';
+    if (status === 'DISPATCHED') return 'text-info';
+    return 'text-muted-foreground';
+  };
+
+  const confirmReceived = async (orderId) => {
+    try {
+      const response = await orderAPI.confirmDelivery(orderId);
+      if (response.data?.success) {
+        alert('Thank you! Order marked as delivered.');
+        fetchOrderHistory();
+      }
+    } catch (error) {
+      console.error('Error confirming delivery:', error);
+      alert('Failed to confirm delivery. Please try again.');
+    }
+  };
+
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/products`);
-      if (response.ok) {
-        const data = await response.json();
-        setProducts(data);
-      }
+      setLoading(true);
+      const response = await productAPI.getProducts({
+        limit: 1000,
+        isActive: 'true',
+        bustCache: true,
+      });
+      const rawProducts = response.data?.data?.products || [];
+      setProducts(Array.isArray(rawProducts) ? rawProducts.map(normalizeProduct) : []);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -34,15 +86,9 @@ const CustomerDashboard = () => {
 
   const fetchOrderHistory = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/customer/orders`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setOrderHistory(data);
-      }
+      const response = await orderAPI.getOrders({ page: 1, limit: 50 });
+      const rawOrders = response.data?.data?.orders || [];
+      setOrderHistory(Array.isArray(rawOrders) ? rawOrders.map(normalizeOrder) : []);
     } catch (error) {
       console.error('Error fetching order history:', error);
     }
@@ -78,26 +124,18 @@ const CustomerDashboard = () => {
     if (cart.length === 0) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/customer/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          items: cart.map(item => ({
-            product_id: item.id,
-            quantity: item.quantity,
-            unit_price: item.price
-          })),
-          total_amount: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-        })
+      const response = await orderAPI.createOrder({
+        items: cart.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+        })),
       });
 
-      if (response.ok) {
+      if (response.data?.success) {
         alert('Order placed successfully! You will receive a confirmation email.');
         setCart([]);
         fetchOrderHistory();
+        fetchProducts(); // refresh stock after order
       }
     } catch (error) {
       console.error('Error placing order:', error);
@@ -205,7 +243,7 @@ const CustomerDashboard = () => {
                 <div className={viewMode === 'grid' ? '' : 'flex'}>
                   <div className={viewMode === 'grid' ? 'h-48' : 'w-48 h-48'}>
                     <img
-                      src={product.image_url || '/api/placeholder/400/300'}
+                      src={product.image_url}
                       alt={product.name}
                       className="w-full h-full object-cover"
                     />
@@ -261,7 +299,7 @@ const CustomerDashboard = () => {
                     <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4 flex-1">
                         <img
-                          src={item.image_url || '/api/placeholder/80/80'}
+                          src={item.image_url}
                           alt={item.name}
                           className="w-20 h-20 object-cover rounded"
                         />
@@ -323,20 +361,30 @@ const CustomerDashboard = () => {
                 <div key={order.id} className="p-4 border rounded-lg">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h4 className="font-semibold">Order #{order.id}</h4>
+                      <h4 className="font-semibold">Order #{order.id.slice(-8)}</h4>
                       <p className="text-sm text-muted-foreground">{new Date(order.created_at).toLocaleDateString()}</p>
                     </div>
                     <div className="text-right">
-                      <span className="font-bold text-lg">${order.total_amount}</span>
+                      <span className="font-bold text-lg">${order.total_amount.toFixed(2)}</span>
                       <span className={`block text-sm ${
-                        order.status === 'delivered' ? 'text-success' :
-                        order.status === 'pending' ? 'text-warning' :
-                        'text-info'
+                        getOrderStatusClass(order.status)
                       }`}>
-                        {order.status}
+                        {getOrderStatusLabel(order.status)}
                       </span>
                     </div>
                   </div>
+
+                  {order.status === 'DISPATCHED' && (
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => confirmReceived(order.id)}
+                      >
+                        Mark Received
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

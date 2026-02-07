@@ -67,7 +67,7 @@ export const Products = () => {
   const isMountedRef = useRef(true);
 
   // Fetch products from API
-  const fetchProducts = useCallback(async (showLoading = true) => {
+  const fetchProducts = useCallback(async (showLoading = true, bustCache = false) => {
     if (showLoading) setLoading(true);
     setError(null);
     
@@ -76,14 +76,16 @@ export const Products = () => {
         limit: 1000,
         ...(categoryFilter !== 'all' && { category: categoryFilter }),
         ...(searchQuery && { search: searchQuery }),
-        is_active: true,
+        // Only filter by isActive in catalog view, show all products in manage view
+        ...(activeTab === 'catalog' && { isActive: 'true' }),
+        bustCache, // Force fresh data when needed
       };
       
       const response = await productAPI.getProducts(params);
       const data = response.data;
       
       if (isMountedRef.current) {
-        setProducts(data.products || []);
+        setProducts(data?.data?.products || []);
         setLastUpdate(new Date());
         setIsConnected(true);
         retryCountRef.current = 0;
@@ -115,19 +117,22 @@ export const Products = () => {
         setLoading(false);
       }
     }
-  }, [categoryFilter, searchQuery]);
+  }, [categoryFilter, searchQuery, activeTab]); // Add activeTab to refetch when switching tabs
 
   // Fetch metrics
-  const fetchMetrics = useCallback(async () => {
+  const fetchMetrics = useCallback(async (bustCache = false) => {
     try {
-      const response = await productAPI.getStats();
+      const response = await productAPI.getStats(bustCache);
       const data = response.data;
       if (isMountedRef.current) {
         setMetrics({
-          totalProducts: data.total_products || 0,
-          inStock: data.in_stock || 0,
-          lowStock: data.low_stock || 0,
-          outOfStock: data.out_of_stock || 0,
+          totalProducts: data?.data?.totalProducts || 0,
+          inStock: Math.max(
+            0,
+            (data?.data?.totalProducts || 0) - (data?.data?.outOfStock || 0)
+          ),
+          lowStock: data?.data?.lowStockProducts || 0,
+          outOfStock: data?.data?.outOfStock || 0,
         });
       }
     } catch (err) {
@@ -174,6 +179,11 @@ export const Products = () => {
     };
   }, [fetchProducts, fetchMetrics, fetchCategories]);
 
+  // Refetch products when switching between tabs (catalog shows active only, manage shows all)
+  useEffect(() => {
+    fetchProducts(true, true); // Bust cache when switching tabs
+  }, [activeTab]);
+
   // Manual refresh
   const handleRefresh = () => {
     fetchProducts();
@@ -216,8 +226,8 @@ export const Products = () => {
       setSuccess('Product created successfully!');
       resetForm();
       setShowAddModal(false);
-      fetchProducts();
-      fetchMetrics();
+      fetchProducts(true, true); // Bust cache to show new product
+      fetchMetrics(true); // Bust cache for updated stats
       
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -266,8 +276,8 @@ export const Products = () => {
       resetForm();
       setShowEditModal(false);
       setSelectedProduct(null);
-      fetchProducts();
-      fetchMetrics();
+      fetchProducts(true, true); // Bust cache to show updated product
+      fetchMetrics(true); // Bust cache for updated stats
       
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -287,8 +297,8 @@ export const Products = () => {
     try {
       await productAPI.deleteProduct(productId);
       setSuccess('Product deleted successfully!');
-      fetchProducts();
-      fetchMetrics();
+      fetchProducts(true, true); // Bust cache after deletion
+      fetchMetrics(true); // Bust cache for updated stats
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Failed to delete product');
@@ -830,20 +840,13 @@ export const Products = () => {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
             />
-            <div>
-              <label className="block text-sm font-medium mb-2">Category*</label>
-              <select 
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                required
-              >
-                <option value="">Select Category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+            <Input
+              label="Category*"
+              placeholder="Type category (e.g., Electronics)"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              required
+            />
             <div>
               <label className="block text-sm font-medium mb-2">Description</label>
               <textarea
@@ -935,20 +938,13 @@ export const Products = () => {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
               />
-              <div>
-                <label className="block text-sm font-medium mb-2">Category*</label>
-                <select 
-                  className="w-full px-4 py-2 rounded-lg border border-border bg-background"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  required
-                >
-                  <option value="">Select Category</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+              <Input
+                label="Category*"
+                placeholder="Type category (e.g., Electronics)"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                required
+              />
               <div>
                 <label className="block text-sm font-medium mb-2">Description</label>
                 <textarea

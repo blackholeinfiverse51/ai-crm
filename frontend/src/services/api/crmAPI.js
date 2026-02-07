@@ -1,11 +1,36 @@
 import apiClient from './baseAPI';
 
+// Helper function to generate default password
+const generateDefaultPassword = () => {
+  return 'Customer@123456'; // Default password for CRM-created accounts
+};
+
 // CRM API mapped to MongoDB Logistics Backend
 export const crmAPI = {
   // Accounts (mapped to Users with role=customer)
   getAccounts: (params) => apiClient.get('/api/users', { params: { role: 'customer', ...params } }),
   getAccount: (id) => apiClient.get(`/api/users/${id}`),
-  createAccount: (data) => apiClient.post('/api/users', { ...data, role: 'customer' }),
+  createAccount: (data) => {
+    // Transform CRM account data to User API format
+    const userData = {
+      name: data.name,
+      email: data.email,
+      password: data.password || generateDefaultPassword(),
+      role: 'customer',
+      phone: data.phone || '',
+      shopDetails: {
+        shopName: data.name,
+        address: data.billing_address || '',
+        city: data.city || '',
+        state: data.state || '',
+        country: data.country || '',
+        postalCode: data.postal_code || '',
+        phone: data.phone || ''
+      },
+      isActive: data.status === 'active'
+    };
+    return apiClient.post('/api/users', userData);
+  },
   updateAccount: (id, data) => apiClient.put(`/api/users/${id}`, data),
   
   // Contacts (mapped to all users)

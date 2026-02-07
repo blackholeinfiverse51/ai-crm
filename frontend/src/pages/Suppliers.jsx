@@ -44,7 +44,7 @@ export const Suppliers = () => {
     address: '',
     lead_time_days: 7,
     rating: 0,
-    is_active: true
+    isActive: true
   });
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export const Suppliers = () => {
           address: formData.address,
           leadTimeDays: formData.lead_time_days,
           rating: formData.rating,
-          isActive: formData.is_active
+          isActive: formData.isActive
         })
       });
       
@@ -176,6 +176,13 @@ export const Suppliers = () => {
   };
 
   const startEdit = (supplier) => {
+    // Check if this is a legacy supplier (from products)
+    if (supplier.source === 'product') {
+      setError('This supplier comes from product data and cannot be edited directly. Please create a new supplier with this information.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    
     setFormData({
       name: supplier.name,
       contact_email: supplier.email || '',
@@ -183,15 +190,55 @@ export const Suppliers = () => {
       address: supplier.address || '',
       lead_time_days: supplier.leadTimeDays || 7,
       rating: supplier.rating || 0,
-      is_active: supplier.isActive
+      isActive: supplier.isActive
     });
     setEditingSupplierId(supplier.id);
     setActiveTab('edit');
   };
 
   const startDelete = (supplier) => {
+    // Check if this is a legacy supplier (from products)
+    if (supplier.source === 'product') {
+      setError('This supplier comes from product data and cannot be deleted directly. To remove it, update the products that reference it.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    
     setSupplierToDelete(supplier);
     setShowDeleteDialog(true);
+  };
+
+  const convertLegacySupplier = async (legacySupplier) => {
+    try {
+      setError(null);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/suppliers`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          name: legacySupplier.name,
+          email: legacySupplier.email || '',
+          phone: legacySupplier.phone || '',
+          address: legacySupplier.address || '',
+          leadTimeDays: 7,
+          rating: 0
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to convert supplier');
+      }
+      
+      setSuccess('Legacy supplier converted successfully! You can now manage it.');
+      loadSuppliers();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const resetForm = () => {
@@ -202,7 +249,7 @@ export const Suppliers = () => {
       address: '',
       lead_time_days: 7,
       rating: 0,
-      is_active: true
+      isActive: true
     });
     setEditingSupplierId(null);
   };
@@ -459,30 +506,57 @@ export const Suppliers = () => {
                         
                         {/* Action Buttons */}
                         <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEdit(s);
-                            }}
-                            className="flex items-center gap-2"
-                          >
-                            <Settings className="h-4 w-4" />
-                            Manage
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startDelete(s);
-                            }}
-                            className="flex items-center gap-2"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </Button>
+                          {s.source === 'product' ? (
+                            // Legacy supplier from products - show convert button
+                            <>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mr-auto">
+                                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">
+                                  Legacy
+                                </span>
+                                <span>From product data</span>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  convertLegacySupplier(s);
+                                }}
+                                className="flex items-center gap-2"
+                              >
+                                <Plus className="h-4 w-4" />
+                                Convert
+                              </Button>
+                            </>
+                          ) : (
+                            // Real supplier from database - show manage/delete buttons
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEdit(s);
+                                }}
+                                className="flex items-center gap-2"
+                              >
+                                <Settings className="h-4 w-4" />
+                                Manage
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startDelete(s);
+                                }}
+                                className="flex items-center gap-2"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                         )}
@@ -582,8 +656,8 @@ export const Suppliers = () => {
                   <input
                     type="checkbox"
                     id="is_active_edit"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="rounded border-border"
                   />
                   <label htmlFor="is_active_edit" className="text-sm font-medium">Active Supplier</label>
@@ -676,8 +750,8 @@ export const Suppliers = () => {
                   <div className="flex items-center gap-3 pt-7">
               <input
                 type="checkbox"
-                checked={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="w-4 h-4 rounded border-input"
               />
                     <span className="text-sm font-medium">Active</span>

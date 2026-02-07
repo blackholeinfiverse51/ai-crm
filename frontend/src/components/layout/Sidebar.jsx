@@ -11,46 +11,51 @@ import { ROUTES } from '@/utils/constants';
 import Button from '../common/ui/Button';
 import { useAuth } from '@/context/MongoAuthContext';
 
-const navigation = [
-  { name: 'Overview', icon: LayoutDashboard, path: ROUTES.DASHBOARD },
-  { 
-    name: 'CRM & Logistics',
-    items: [
-      { name: 'CRM Management', icon: Users, path: ROUTES.CRM },
-      { name: 'Logistics & Inventory', icon: Package, path: ROUTES.LOGISTICS },
-      { name: 'Infiverse Monitoring', icon: UsersRound, path: ROUTES.INFIVERSE },
-      { name: 'Supplier Management', icon: Building2, path: ROUTES.SUPPLIERS },
-      { name: 'Product Catalog', icon: ShoppingCart, path: ROUTES.PRODUCTS },
-      { name: 'Supplier Showcase', icon: Store, path: '/showcase' },
-    ]
-  },
-  {
-    name: 'AI & Automation',
-    items: [
-      { name: 'EMS Automation', icon: Mail, path: ROUTES.EMAILS },
-      { name: 'RL Learning', icon: GraduationCap, path: ROUTES.LEARNING },
-      { name: 'AI Decisions', icon: Brain, path: ROUTES.DECISIONS },
-      { name: 'AI Agents', icon: Bot, path: ROUTES.AGENTS },
-    ]
-  },
-  {
-    name: 'Analytics & Reports',
-    items: [
-      { name: 'Analytics', icon: BarChart3, path: '/analytics' },
-    ]
-  },
-  {
-    name: 'System',
-    items: [
-      { name: 'Notifications', icon: Bell, path: ROUTES.NOTIFICATIONS },
-      { name: 'Settings', icon: Settings, path: ROUTES.SETTINGS },
-    ]
-  },
-];
-
 export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapseToggle }) => {
-  const { logout } = useAuth();
+  const { logout, isCustomer } = useAuth();
   const navigate = useNavigate();
+
+  // Role-based navigation
+  const navigation = isCustomer
+    ? [
+        { name: 'Customer Portal', icon: ShoppingCart, path: '/customer-portal' }
+      ]
+    : [
+        { name: 'Overview', icon: LayoutDashboard, path: ROUTES.DASHBOARD },
+        { 
+          name: 'CRM & Logistics',
+          items: [
+            { name: 'CRM Management', icon: Users, path: ROUTES.CRM },
+            { name: 'Logistics & Inventory', icon: Package, path: ROUTES.LOGISTICS },
+            { name: 'Infiverse Monitoring', icon: UsersRound, path: ROUTES.INFIVERSE },
+            { name: 'Supplier Management', icon: Building2, path: ROUTES.SUPPLIERS },
+            { name: 'Product Catalog', icon: ShoppingCart, path: ROUTES.PRODUCTS },
+            { name: 'Supplier Showcase', icon: Store, path: '/showcase' },
+          ]
+        },
+        {
+          name: 'AI & Automation',
+          items: [
+            { name: 'EMS Automation', icon: Mail, path: ROUTES.EMAILS },
+            { name: 'RL Learning', icon: GraduationCap, path: ROUTES.LEARNING },
+            { name: 'AI Decisions', icon: Brain, path: ROUTES.DECISIONS },
+            { name: 'AI Agents', icon: Bot, path: ROUTES.AGENTS },
+          ]
+        },
+        {
+          name: 'Analytics & Reports',
+          items: [
+            { name: 'Analytics', icon: BarChart3, path: '/analytics' },
+          ]
+        },
+        {
+          name: 'System',
+          items: [
+            { name: 'Notifications', icon: Bell, path: ROUTES.NOTIFICATIONS },
+            { name: 'Settings', icon: Settings, path: ROUTES.SETTINGS },
+          ]
+        },
+      ];
 
   const handleLogout = async () => {
     try {

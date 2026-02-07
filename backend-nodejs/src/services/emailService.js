@@ -174,6 +174,118 @@ class EmailService {
     }
   }
 
+  async sendOrderDispatched(order, customer) {
+    if (!this.transporter) {
+      console.log('📧 Email service not configured. Would have sent order dispatched email');
+      return { success: false, message: 'Email service not configured' };
+    }
+
+    try {
+      const mailOptions = {
+        from: {
+          name: process.env.SMTP_FROM_NAME || 'AI CRM Logistics',
+          address: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
+        },
+        to: customer.email,
+        subject: `Order Dispatched - ${order.orderNumber}`,
+        html: this.getOrderStatusTemplate(order, customer, 'DISPATCHED'),
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Order dispatched email sent:', info.messageId);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('❌ Email sending failed:', error.message);
+      return { success: false, message: error.message };
+    }
+  }
+
+  async sendOrderDelivered(order, customer) {
+    if (!this.transporter) {
+      console.log('📧 Email service not configured. Would have sent order delivered email');
+      return { success: false, message: 'Email service not configured' };
+    }
+
+    try {
+      const mailOptions = {
+        from: {
+          name: process.env.SMTP_FROM_NAME || 'AI CRM Logistics',
+          address: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
+        },
+        to: customer.email,
+        subject: `Order Delivered - ${order.orderNumber}`,
+        html: this.getOrderStatusTemplate(order, customer, 'DELIVERED'),
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Order delivered email sent:', info.messageId);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('❌ Email sending failed:', error.message);
+      return { success: false, message: error.message };
+    }
+  }
+
+  getOrderStatusTemplate(order, customer, status) {
+    const statusTitle = status === 'DISPATCHED' ? '🚚 Order Dispatched' : '✅ Order Delivered';
+    const statusMessage = status === 'DISPATCHED'
+      ? 'Your order has been dispatched and is on the way.'
+      : 'Your order has been marked as delivered. Thank you for confirming receipt.';
+    const timestamp = status === 'DISPATCHED'
+      ? order.tracking?.dispatchedAt
+      : order.tracking?.deliveredAt;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+          .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+          .detail-label { font-weight: bold; color: #6b7280; }
+          .detail-value { color: #111827; }
+          .footer { background: #1f2937; color: #9ca3af; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>${statusTitle}</h1>
+          </div>
+          <div class="content">
+            <p>Dear ${customer.name},</p>
+            <p>${statusMessage}</p>
+            <div class="details">
+              <h3 style="margin-top: 0; color: #3b82f6;">Order Status Update</h3>
+              <div class="detail-row">
+                <span class="detail-label">Order Number:</span>
+                <span class="detail-value"><strong>${order.orderNumber}</strong></span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Status:</span>
+                <span class="detail-value"><strong>${status}</strong></span>
+              </div>
+              <div class="detail-row" style="border-bottom: none;">
+                <span class="detail-label">Updated At:</span>
+                <span class="detail-value">${timestamp ? new Date(timestamp).toLocaleString() : new Date().toLocaleString()}</span>
+              </div>
+            </div>
+            <p>You can track your order status from your dashboard.</p>
+          </div>
+          <div class="footer">
+            <p><strong>AI CRM Logistics System</strong></p>
+            <p>© ${new Date().getFullYear()} AI CRM Logistics. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   getOrderConfirmationTemplate(order, customer) {
     const itemsHtml = order.items.map(item => `
       <div class="detail-row">

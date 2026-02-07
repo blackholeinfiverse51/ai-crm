@@ -78,11 +78,11 @@ const orderSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate order number before saving
-orderSchema.pre('save', async function(next) {
+// Generate order number before validation so `required: true` passes
+orderSchema.pre('validate', function(next) {
   if (!this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderNumber = `ORD-${Date.now()}-${(count + 1).toString().padStart(5, '0')}`;
+    const uniqueSuffix = new mongoose.Types.ObjectId().toString().slice(-6).toUpperCase();
+    this.orderNumber = `ORD-${Date.now()}-${uniqueSuffix}`;
   }
   next();
 });

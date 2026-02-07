@@ -279,6 +279,18 @@ router.put('/:id/dispatch', isAdminOrManager, async (req, res) => {
 
     await order.save();
 
+    // Notify customer (email) after dispatch
+    setImmediate(async () => {
+      try {
+        const customer = await User.findById(order.customerId).select('name email');
+        if (customer?.email) {
+          await emailService.sendOrderDispatched(order, customer);
+        }
+      } catch (e) {
+        console.warn('Failed to send dispatched email:', e.message);
+      }
+    });
+
     const populatedOrder = await Order.findById(order._id)
       .populate('customerId', 'name email shopDetails')
       .populate('items.productId', 'name sku')
@@ -331,6 +343,18 @@ router.put('/:id/deliver', isCustomer, async (req, res) => {
     order.tracking.confirmedByCustomer = true;
 
     await order.save();
+
+    // Notify customer (email) after delivery confirmation
+    setImmediate(async () => {
+      try {
+        const customer = await User.findById(order.customerId).select('name email');
+        if (customer?.email) {
+          await emailService.sendOrderDelivered(order, customer);
+        }
+      } catch (e) {
+        console.warn('Failed to send delivered email:', e.message);
+      }
+    });
 
     const populatedOrder = await Order.findById(order._id)
       .populate('customerId', 'name email shopDetails')

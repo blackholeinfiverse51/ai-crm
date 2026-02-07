@@ -45,8 +45,9 @@ const Login = () => {
     setError('');
 
     try {
-      await login(formData.email, formData.password);
-      navigate('/');
+      const result = await login(formData.email, formData.password);
+      const role = result?.user?.role;
+      navigate(role === 'customer' ? '/customer-portal' : '/');
     } catch (err) {
       console.error('Login error:', err);
       

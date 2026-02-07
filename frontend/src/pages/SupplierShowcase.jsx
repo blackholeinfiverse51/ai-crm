@@ -32,21 +32,39 @@ export const SupplierShowcase = () => {
       setError(null);
 
       // Fetch products
-      const productsResponse = await productAPI.getProducts({ limit: 1000, is_active: true });
-      const productsData = productsResponse.data?.products || productsResponse.data || [];
+      const productsResponse = await productAPI.getProducts({ limit: 1000, isActive: 'true' });
+      
+      // Handle different response structures
+      let productsData = [];
+      if (productsResponse.data?.products) {
+        productsData = productsResponse.data.products;
+      } else if (productsResponse.data?.data) {
+        productsData = productsResponse.data.data;
+      } else if (Array.isArray(productsResponse.data)) {
+        productsData = productsResponse.data;
+      } else {
+        console.warn('Unexpected products response structure:', productsResponse);
+        productsData = [];
+      }
+      
+      // Ensure productsData is an array before mapping
+      if (!Array.isArray(productsData)) {
+        console.error('Products data is not an array:', productsData);
+        productsData = [];
+      }
       
       // Transform products to match frontend format
       const formattedProducts = productsData.map(product => ({
-        id: product.ProductID || product.product_id || product.id,
-        name: product.ProductName || product.product_name || product.name || 'Unknown Product',
-        category: product.Category || product.category || 'Uncategorized',
-        price: parseFloat(product.UnitPrice || product.unit_price || product.price || 0),
-        stock: product.CurrentStock || product.current_stock || product.stock || 0,
-        image: product.PrimaryImageURL || product.primary_image_url || product.image || 'https://via.placeholder.com/300',
-        supplier: product.SupplierName || product.supplier_name || product.supplier || 'Unknown Supplier',
-        weight: parseFloat(product.Weight || product.weight || 0),
-        dimensions: product.Dimensions || product.dimensions || 'N/A',
-        description: product.Description || product.description || 'No description available',
+        id: product._id || product.ProductID || product.product_id || product.id,
+        name: product.name || product.ProductName || product.product_name || 'Unknown Product',
+        category: product.category || product.Category || 'Uncategorized',
+        price: parseFloat(product.sellingPrice || product.UnitPrice || product.unit_price || product.price || 0),
+        stock: product.stockQuantity || product.CurrentStock || product.current_stock || product.stock || 0,
+        image: product.primaryImageURL || product.PrimaryImageURL || product.primary_image_url || product.image || 'https://via.placeholder.com/300',
+        supplier: product.supplier?.name || product.SupplierName || product.supplier_name || product.supplier || 'Unknown Supplier',
+        weight: parseFloat(product.weight || product.Weight || 0),
+        dimensions: product.dimensions || product.Dimensions || 'N/A',
+        description: product.description || product.Description || 'No description available',
       }));
 
       setProducts(formattedProducts);

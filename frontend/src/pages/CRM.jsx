@@ -46,6 +46,7 @@ export const CRM = () => {
     website: '',
     phone: '',
     email: '',
+    password: '',
     billing_address: '',
     city: '',
     state: '',
@@ -87,18 +88,24 @@ export const CRM = () => {
           let leadsData = [];
           try {
             const leadsResponse = await crmAPI.getLeads({ limit: 100 });
-            leadsData = leadsResponse.data?.leads || leadsResponse.data || [];
+            leadsData = Array.isArray(leadsResponse.data?.leads) ? leadsResponse.data.leads 
+                      : Array.isArray(leadsResponse.data) ? leadsResponse.data 
+                      : [];
           } catch (err) {
             console.warn('Failed to fetch leads:', err);
+            leadsData = [];
           }
 
           // Fetch opportunities for metrics
           let oppsData = [];
           try {
             const oppsResponse = await crmAPI.getOpportunities({ limit: 100 });
-            oppsData = oppsResponse.data?.opportunities || oppsResponse.data || [];
+            oppsData = Array.isArray(oppsResponse.data?.opportunities) ? oppsResponse.data.opportunities 
+                     : Array.isArray(oppsResponse.data) ? oppsResponse.data 
+                     : [];
           } catch (err) {
             console.warn('Failed to fetch opportunities:', err);
+            oppsData = [];
           }
 
           // Calculate metrics
@@ -128,7 +135,9 @@ export const CRM = () => {
       // Fetch accounts
       try {
         const accountsResponse = await crmAPI.getAccounts({ limit: 100 });
-        const accountsData = accountsResponse.data?.accounts || accountsResponse.data || [];
+        const accountsData = Array.isArray(accountsResponse.data?.accounts) ? accountsResponse.data.accounts 
+                           : Array.isArray(accountsResponse.data) ? accountsResponse.data 
+                           : [];
         setAccounts(accountsData.map(acc => ({
           id: acc.account_id || acc.id,
           name: acc.name || acc.account_name,
@@ -151,7 +160,9 @@ export const CRM = () => {
       // Fetch leads
       try {
         const leadsResponse = await crmAPI.getLeads({ limit: 100 });
-        const leadsData = leadsResponse.data?.leads || leadsResponse.data || [];
+        const leadsData = Array.isArray(leadsResponse.data?.leads) ? leadsResponse.data.leads 
+                        : Array.isArray(leadsResponse.data) ? leadsResponse.data 
+                        : [];
         setLeads(leadsData.map(lead => ({
           id: lead.lead_id || lead.id,
           name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.company_name,
@@ -172,7 +183,9 @@ export const CRM = () => {
       // Fetch opportunities
       try {
         const oppsResponse = await crmAPI.getOpportunities({ limit: 100 });
-        const oppsData = oppsResponse.data?.opportunities || oppsResponse.data || [];
+        const oppsData = Array.isArray(oppsResponse.data?.opportunities) ? oppsResponse.data.opportunities 
+                       : Array.isArray(oppsResponse.data) ? oppsResponse.data 
+                       : [];
         setOpportunities(oppsData.map(opp => ({
           id: opp.opportunity_id || opp.id,
           name: opp.opportunity_name || opp.name,
@@ -1091,12 +1104,24 @@ export const CRM = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="Email"
+                label="Email*"
                 type="email"
                 value={accountForm.email}
                 onChange={(e) => setAccountForm({ ...accountForm, email: e.target.value })}
                 placeholder="contact@company.com"
+                required
               />
+              <Input
+                label="Password*"
+                type="password"
+                value={accountForm.password}
+                onChange={(e) => setAccountForm({ ...accountForm, password: e.target.value })}
+                placeholder="Min 6 characters"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <Input
                 label="Phone"
                 value={accountForm.phone}
@@ -1201,6 +1226,7 @@ export const CRM = () => {
                 website: '',
                 phone: '',
                 email: '',
+                password: '',
                 billing_address: '',
                 city: '',
                 state: '',
@@ -1292,7 +1318,7 @@ export const CRM = () => {
                 setLoading(false);
               }
             }}
-            disabled={loading || !accountForm.name?.trim()}
+            disabled={loading || !accountForm.name?.trim() || !accountForm.email?.trim() || !accountForm.password?.trim()}
           >
             {loading ? (
               <>

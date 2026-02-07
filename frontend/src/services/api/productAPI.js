@@ -4,7 +4,7 @@ import apiClient from './baseAPI';
 export const productAPI = {
   // Products
   getProducts: (params = {}) => {
-    const { page = 1, limit = 50, category, search, lowStock, isActive } = params;
+    const { page = 1, limit = 50, category, search, lowStock, isActive, bustCache } = params;
     return apiClient.get('/api/products', {
       params: {
         page,
@@ -12,8 +12,10 @@ export const productAPI = {
         ...(category && { category }),
         ...(search && { search }),
         ...(lowStock && { lowStock }),
-        ...(isActive !== undefined && { isActive })
-      }
+        ...(isActive !== undefined && { isActive }),
+        ...(bustCache && { _t: Date.now() }) // Cache buster
+      },
+      headers: bustCache ? { 'Cache-Control': 'no-cache' } : {}
     });
   },
   
@@ -26,7 +28,10 @@ export const productAPI = {
   deleteProduct: (id) => apiClient.delete(`/api/products/${id}`),
   
   // Product Stats
-  getStats: () => apiClient.get('/api/products/stats/summary'),
+  getStats: (bustCache = false) => apiClient.get('/api/products/stats/summary', {
+    params: bustCache ? { _t: Date.now() } : {},
+    headers: bustCache ? { 'Cache-Control': 'no-cache' } : {}
+  }),
   
   // Categories (extract from products)
   getCategories: async () => {

@@ -1,6 +1,7 @@
 import express from 'express';
 import Product from '../models/Product.js';
 import Supplier from '../models/Supplier.js';
+import mongoose from 'mongoose';
 import { protect } from '../middleware/auth.js';
 import { HTTP_STATUS } from '../config/constants.js';
 
@@ -169,6 +170,19 @@ router.put('/:id', async (req, res) => {
       });
     }
 
+    // Check if ID is a valid MongoDB ObjectId
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(id) && id.length === 24;
+    
+    if (!isValidObjectId) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: 'Cannot edit legacy supplier. Please create a new supplier with this information.',
+        data: { 
+          suggestion: 'This supplier comes from product data. Create a new supplier to manage it properly.' 
+        }
+      });
+    }
+
     // Check if supplier exists
     const supplier = await Supplier.findById(id);
     if (!supplier) {
@@ -237,6 +251,19 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Check if ID is a valid MongoDB ObjectId
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(id) && id.length === 24;
+    
+    if (!isValidObjectId) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        message: 'Cannot delete legacy supplier directly.',
+        data: { 
+          suggestion: 'This supplier comes from product data. To remove it, update the products that reference it or create a proper supplier record first.' 
+        }
+      });
+    }
 
     // Check if supplier exists
     const supplier = await Supplier.findById(id);

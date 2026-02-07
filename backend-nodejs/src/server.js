@@ -30,6 +30,37 @@ connectDatabase();
 // Security middleware
 app.use(helmet());
 
+// CORS configuration (must be before rate limiting and routes to handle preflight)
+const allowedOrigins = (process.env.CORS_ORIGINS?.split(',') || [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+]).map((o) => o.trim()).filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (no Origin header)
+    if (!origin) return callback(null, true);
+
+    // Explicit allowlist
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // In development, allow any localhost/127.0.0.1 port
+    const isDev = (process.env.NODE_ENV || 'development') !== 'production';
+    if (isDev) {
+      const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+      if (localhostPattern.test(origin)) return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 // Rate limiting (relaxed for development)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -39,14 +70,6 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/', limiter);
-
-// CORS configuration
-const corsOptions = {
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
 
 // Body parser middleware
 app.use(express.json({ limit: '10mb' }));
