@@ -12,22 +12,23 @@ export const crmAPI = {
   getAccount: (id) => apiClient.get(`/api/users/${id}`),
   createAccount: (data) => {
     // Transform CRM account data to User API format
+    // Supports creating `customer` and `manager` accounts from CRM management.
+    const role = data.account_type === 'manager' ? 'manager' : 'customer';
     const userData = {
       name: data.name,
       email: data.email,
       password: data.password || generateDefaultPassword(),
-      role: 'customer',
-      phone: data.phone || '',
-      shopDetails: {
-        shopName: data.name,
-        address: data.billing_address || '',
-        city: data.city || '',
-        state: data.state || '',
-        country: data.country || '',
-        postalCode: data.postal_code || '',
-        phone: data.phone || ''
-      },
-      isActive: data.status === 'active'
+      role,
+      isActive: data.status === 'active',
+      ...(role === 'customer'
+        ? {
+            shopDetails: {
+              shopName: data.name,
+              address: data.billing_address || '',
+              phone: data.phone || '',
+            },
+          }
+        : {})
     };
     return apiClient.post('/api/users', userData);
   },

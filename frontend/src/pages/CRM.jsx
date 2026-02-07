@@ -75,131 +75,117 @@ export const CRM = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch dashboard data for overview metrics
-      if (activeTab === 'overview') {
-        try {
-          const dashboardResponse = await dashboardAPI.getAccounts({ limit: 1 });
-          const dashboardData = dashboardResponse.data;
-          
-          // Calculate metrics from dashboard data
-          const totalAccounts = dashboardData?.total || dashboardData?.accounts?.length || 0;
-          
-          // Fetch leads for metrics
-          let leadsData = [];
-          try {
-            const leadsResponse = await crmAPI.getLeads({ limit: 100 });
-            leadsData = Array.isArray(leadsResponse.data?.leads) ? leadsResponse.data.leads 
-                      : Array.isArray(leadsResponse.data) ? leadsResponse.data 
-                      : [];
-          } catch (err) {
-            console.warn('Failed to fetch leads:', err);
-            leadsData = [];
-          }
-
-          // Fetch opportunities for metrics
-          let oppsData = [];
-          try {
-            const oppsResponse = await crmAPI.getOpportunities({ limit: 100 });
-            oppsData = Array.isArray(oppsResponse.data?.opportunities) ? oppsResponse.data.opportunities 
-                     : Array.isArray(oppsResponse.data) ? oppsResponse.data 
-                     : [];
-          } catch (err) {
-            console.warn('Failed to fetch opportunities:', err);
-            oppsData = [];
-          }
-
-          // Calculate metrics
-          const activeLeads = leadsData.filter(l => l.lead_status !== 'converted').length;
-          const totalOpps = oppsData.length;
-          const closedWon = oppsData.filter(o => o.stage === 'closed_won' || o.opportunity_stage === 'closed_won').length;
-          const closedLost = oppsData.filter(o => o.stage === 'closed_lost' || o.opportunity_stage === 'closed_lost').length;
-          const pipelineValue = oppsData.reduce((sum, o) => sum + (parseFloat(o.amount || o.opportunity_amount || 0)), 0);
-          const avgDealSize = totalOpps > 0 ? pipelineValue / totalOpps : 0;
-          const conversionRate = leadsData.length > 0 ? (closedWon / leadsData.length) * 100 : 0;
-
-          setMetrics({
-            totalAccounts,
-            activeLeads,
-            opportunities: totalOpps,
-            conversionRate: Math.round(conversionRate * 10) / 10,
-            pipelineValue: Math.round(pipelineValue),
-            avgDealSize: Math.round(avgDealSize),
-            closedWon,
-            closedLost,
-          });
-        } catch (err) {
-          console.warn('Failed to fetch dashboard data:', err);
-        }
+      // Fetch dashboard stats (MongoDB backend) for accurate overview metrics
+      let dashboardStats = null;
+      try {
+        const statsResponse = await dashboardAPI.getDashboardStats();
+        dashboardStats = statsResponse.data?.data || null;
+      } catch (err) {
+        console.warn('Failed to fetch dashboard stats:', err);
       }
 
       // Fetch accounts
+      let accountsTotal = 0;
+      let usersList = [];
       try {
         const accountsResponse = await crmAPI.getAccounts({ limit: 100 });
-        const accountsData = Array.isArray(accountsResponse.data?.accounts) ? accountsResponse.data.accounts 
-                           : Array.isArray(accountsResponse.data) ? accountsResponse.data 
-                           : [];
-        setAccounts(accountsData.map(acc => ({
-          id: acc.account_id || acc.id,
-          name: acc.name || acc.account_name,
-          industry: acc.industry,
-          value: acc.annual_revenue || 0,
-          revenue: acc.annual_revenue || 0,
-          stage: acc.lifecycle_stage || 'prospect',
-          contact: acc.primary_contact || '',
-          email: acc.email,
-          phone: acc.phone,
-          territory: acc.territory || '',
-          accountType: acc.account_type || 'customer',
-          manager: acc.account_manager_id || '',
-          lastActivity: acc.updated_at ? new Date(acc.updated_at) : new Date()
+        usersList = accountsResponse.data?.data?.users || [];
+        accountsTotal = accountsResponse.data?.data?.pagination?.total ?? usersList.length;
+
+        setAccounts(usersList.map(user => ({
+          id: user._id,
+          name: user.shopDetails?.shopName || user.name,
+          industry: '',
+          value: 0,
+          revenue: 0,
+          stage: user.isActive ? 'active' : 'inactive',
+          contact: user.name,
+          email: user.email,
+          phone: user.shopDetails?.phone || '',
+          territory: '',
+          accountType: user.role || 'customer',
+          manager: user.createdBy?.name || '',
+          lastActivity: user.updatedAt ? new Date(user.updatedAt) : new Date(user.createdAt || Date.now())
         })));
       } catch (err) {
         console.warn('Failed to fetch accounts:', err);
+        usersList = [];
+        accountsTotal = 0;
       }
 
       // Fetch leads
-      try {
-        const leadsResponse = await crmAPI.getLeads({ limit: 100 });
-        const leadsData = Array.isArray(leadsResponse.data?.leads) ? leadsResponse.data.leads 
-                        : Array.isArray(leadsResponse.data) ? leadsResponse.data 
-                        : [];
-        setLeads(leadsData.map(lead => ({
-          id: lead.lead_id || lead.id,
-          name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.company_name,
-          company: lead.company_name || lead.company,
-          email: lead.email,
-          phone: lead.phone,
-          status: lead.lead_status || lead.status || 'new',
-          source: lead.lead_source || lead.source || 'website',
-          budget: parseFloat(lead.budget || lead.estimated_value || 0),
-          territory: lead.territory || '',
-          assignedTo: lead.assigned_to || lead.owner || '',
-          created: lead.created_at ? new Date(lead.created_at) : new Date()
-        })));
-      } catch (err) {
-        console.warn('Failed to fetch leads:', err);
-      }
+      // Leads are not a separate collection in the MongoDB-only backend;
+      // we treat customer accounts as leads for display purposes.
+      setLeads(usersList.map(user => ({
+        id: user._id,
+        name: user.name,
+        company: user.shopDetails?.shopName || user.name,
+        email: user.email,
+        phone: user.shopDetails?.phone || '',
+        status: user.isActive ? 'qualified' : 'new',
+        source: 'crm',
+        budget: 0,
+        territory: '',
+        assignedTo: user.createdBy?.name || '',
+        created: user.createdAt ? new Date(user.createdAt) : new Date()
+      })));
 
       // Fetch opportunities
+      let ordersList = [];
       try {
         const oppsResponse = await crmAPI.getOpportunities({ limit: 100 });
-        const oppsData = Array.isArray(oppsResponse.data?.opportunities) ? oppsResponse.data.opportunities 
-                       : Array.isArray(oppsResponse.data) ? oppsResponse.data 
-                       : [];
-        setOpportunities(oppsData.map(opp => ({
-          id: opp.opportunity_id || opp.id,
-          name: opp.opportunity_name || opp.name,
-          accountId: opp.account_id,
-          accountName: opp.account_name || '',
-          stage: opp.opportunity_stage || opp.stage || 'prospecting',
-          probability: parseFloat(opp.probability || opp.close_probability || 0),
-          amount: parseFloat(opp.opportunity_amount || opp.amount || 0),
-          closeDate: opp.close_date ? new Date(opp.close_date) : new Date(),
-          owner: opp.owner || opp.assigned_to || '',
-          products: opp.products || ''
-        })));
+        ordersList = oppsResponse.data?.data?.orders || [];
+
+        setOpportunities(ordersList.map(order => {
+          const status = String(order.status || 'PLACED').toUpperCase();
+          const probability = status === 'DELIVERED' ? 100 : status === 'DISPATCHED' ? 75 : 25;
+          const customer = order.customerId || {};
+          const customerName = customer.shopDetails?.shopName || customer.name || '';
+
+          return {
+            id: order._id,
+            name: order.orderNumber || `Order #${String(order._id || '').slice(-8)}`,
+            accountId: customer._id,
+            accountName: customerName,
+            stage: status,
+            probability,
+            amount: Number(order.totalAmount ?? 0),
+            closeDate: order.tracking?.deliveredAt ? new Date(order.tracking.deliveredAt) : new Date(order.createdAt || Date.now()),
+            owner: order.tracking?.dispatchedBy?.name || '',
+            products: Array.isArray(order.items) ? order.items.map(i => i.productName).filter(Boolean).join(', ') : ''
+          };
+        }));
       } catch (err) {
         console.warn('Failed to fetch opportunities:', err);
+        ordersList = [];
+      }
+
+      // Update overview metrics using real backend counts
+      if (activeTab === 'overview') {
+        const totalAccounts = dashboardStats?.users?.customerCount ?? accountsTotal ?? 0;
+        const activeLeads = dashboardStats?.users?.activeCustomers ?? usersList.filter(u => u.isActive).length;
+        const totalOpps = dashboardStats?.orders?.total ?? ordersList.length;
+        const closedWon = dashboardStats?.orders?.delivered ?? ordersList.filter(o => String(o.status || '').toUpperCase() === 'DELIVERED').length;
+        const closedLost = 0;
+
+        const pipelineOrders = ordersList.filter(o => {
+          const s = String(o.status || '').toUpperCase();
+          return s === 'PLACED' || s === 'DISPATCHED';
+        });
+        const pipelineValue = pipelineOrders.reduce((sum, o) => sum + Number(o.totalAmount ?? 0), 0);
+        const avgDealSize = pipelineOrders.length > 0 ? pipelineValue / pipelineOrders.length : 0;
+        const conversionRate = totalOpps > 0 ? (closedWon / totalOpps) * 100 : 0;
+
+        setMetrics({
+          totalAccounts,
+          activeLeads,
+          opportunities: totalOpps,
+          conversionRate: Math.round(conversionRate * 10) / 10,
+          pipelineValue: Math.round(pipelineValue),
+          avgDealSize: Math.round(avgDealSize),
+          closedWon,
+          closedLost,
+        });
       }
 
 
@@ -222,6 +208,9 @@ export const CRM = () => {
       proposal: 'warning',
       negotiation: 'warning',
       prospecting: 'info',
+      PLACED: 'warning',
+      DISPATCHED: 'info',
+      DELIVERED: 'success',
       closed_won: 'success',
       closed_lost: 'destructive',
     };
@@ -1054,6 +1043,7 @@ export const CRM = () => {
             website: '',
             phone: '',
             email: '',
+            password: '',
             billing_address: '',
             city: '',
             state: '',
@@ -1082,13 +1072,12 @@ export const CRM = () => {
             
             <div className="grid grid-cols-2 gap-3">
               <Select
-                label="Account Type"
+                label="Role"
                 value={accountForm.account_type}
                 onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}
                 options={[
                   { value: 'customer', label: 'Customer' },
-                  { value: 'prospect', label: 'Prospect' },
-                  { value: 'partner', label: 'Partner' },
+                  { value: 'manager', label: 'Manager' },
                 ]}
               />
               <Select
@@ -1262,6 +1251,7 @@ export const CRM = () => {
                   website: accountForm.website?.trim() || null,
                   phone: accountForm.phone?.trim() || null,
                   email: accountForm.email?.trim() || null,
+                  password: accountForm.password?.trim() || null,
                   billing_address: accountForm.billing_address?.trim() || null,
                   city: accountForm.city?.trim() || null,
                   state: accountForm.state?.trim() || null,
@@ -1288,6 +1278,7 @@ export const CRM = () => {
                     website: '',
                     phone: '',
                     email: '',
+                    password: '',
                     billing_address: '',
                     city: '',
                     state: '',
@@ -1312,7 +1303,7 @@ export const CRM = () => {
                 }
               } catch (err) {
                 console.error('Error creating account:', err);
-                const errorMessage = err.response?.data?.detail || err.message || 'Failed to create account. Please try again.';
+                const errorMessage = err.response?.data?.message || err.response?.data?.detail || err.message || 'Failed to create account. Please try again.';
                 setError(errorMessage);
               } finally {
                 setLoading(false);

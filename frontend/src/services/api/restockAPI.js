@@ -16,6 +16,9 @@ export const restockAPI = {
   
   // Resend restock email
   resendEmail: (id) => apiClient.post(`/api/restock/${id}/resend-email`),
+
+  // Run procurement agent (low stock -> restock request + email)
+  runProcurementAgent: () => apiClient.post('/api/restock/run-procurement'),
   
   // Mark restock as completed
   completeRestock: (id, data) => apiClient.put(`/api/restock/${id}/complete`, data),

@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import MetricCard from '../components/common/charts/MetricCard';
 import { orderAPI } from '../services/api/orderAPI';
 import { productAPI } from '../services/api/productAPI';
+import { restockAPI } from '../services/api/restockAPI';
 import { formatDate } from '@/utils/dateUtils';
 
 export const Logistics = () => {
@@ -71,9 +72,18 @@ export const Logistics = () => {
         console.warn('Failed to fetch inventory:', err);
       }
 
+      // Fetch recent procurement/restock activity (Agents tab)
+      if (activeTab === 'agents') {
+        try {
+          const restockResponse = await restockAPI.getRestockRequests({ limit: 10 });
+          setAgentActivity(restockResponse.data?.data?.requests || []);
+        } catch (err) {
+          console.warn('Failed to fetch restock activity:', err);
+        }
+      }
+
       // Legacy sections not backed by MongoDB-only backend
       setShipments([]);
-      setAgentActivity([]);
 
       // Calculate metrics from fetched data
       const processingOrdersCount = orders.filter(o => o.Status === 'Processing' || o.status === 'Processing').length;
@@ -99,6 +109,15 @@ export const Logistics = () => {
     return variants[status] || 'default';
   };
 
+  const getRestockStatusVariant = (status) => {
+    const variants = {
+      PENDING: 'warning',
+      EMAIL_SENT: 'info',
+      RESTOCKED: 'success'
+    };
+    return variants[status] || 'default';
+  };
+
   const handleDispatchOrder = async (orderId) => {
     try {
       await orderAPI.dispatchOrder(orderId);
@@ -112,45 +131,25 @@ export const Logistics = () => {
   const handleRunProcurementAgent = async () => {
     setLoading(true);
     try {
-      await logisticsAPI.runProcurementAgent();
-      // Refresh data after agent runs
-      setTimeout(() => {
-        fetchAllData();
-      }, 2000);
+      await restockAPI.runProcurementAgent();
+      await fetchAllData();
     } catch (error) {
       console.error('Error running procurement agent:', error);
-      setError(error.response?.data?.detail || error.message || 'Failed to run procurement agent');
+      setError(error.response?.data?.message || error.message || 'Failed to run procurement agent');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRunDeliveryAgent = async () => {
-    setLoading(true);
-    try {
-      await logisticsAPI.runDeliveryAgent();
-      // Refresh data after agent runs
-      setTimeout(() => {
-        fetchAllData();
-      }, 2000);
-    } catch (error) {
-      console.error('Error running delivery agent:', error);
-      setError(error.response?.data?.detail || error.message || 'Failed to run delivery agent');
-    } finally {
-      setLoading(false);
-    }
+    setError('Delivery agent is not available in the MongoDB backend');
   };
 
   const handleRefreshActivity = async () => {
     setLoading(true);
     try {
-      // Fetch latest agent activity
-      const response = await logisticsAPI.getAgentLogs({ limit: 10 });
-      if (response?.data?.logs) {
-        setAgentActivity(response.data.logs);
-      } else if (response?.data) {
-        setAgentActivity(Array.isArray(response.data) ? response.data : []);
-      }
+      const restockResponse = await restockAPI.getRestockRequests({ limit: 10 });
+      setAgentActivity(restockResponse.data?.data?.requests || []);
     } catch (error) {
       console.error('Error refreshing activity:', error);
     } finally {
@@ -785,34 +784,35 @@ export const Logistics = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>timestamp</TableHead>
-                      <TableHead>action</TableHead>
-                      <TableHead>ProductID</TableHead>
-                      <TableHead>quantity</TableHead>
-                      <TableHead>confidence</TableHead>
-                      <TableHead>human_review</TableHead>
-                      <TableHead>details</TableHead>
+                      <TableHead>created</TableHead>
+                      <TableHead>product</TableHead>
+                      <TableHead>sku</TableHead>
+                      <TableHead>requested</TableHead>
+                      <TableHead>supplier</TableHead>
+                      <TableHead>status</TableHead>
+                      <TableHead>email sent</TableHead>
+                      <TableHead>notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {agentActivity.map((activity, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-mono text-xs">
-                          {formatDateTime(activity.timestamp)}
+                          {formatDateTime(activity.createdAt)}
                         </TableCell>
-                        <TableCell>{activity.action}</TableCell>
-                        <TableCell>{activity.ProductID}</TableCell>
-                        <TableCell>{activity.quantity ?? 'None'}</TableCell>
-                        <TableCell>{activity.confidence}</TableCell>
+                        <TableCell>{activity.productName || activity.productId?.name || '-'}</TableCell>
+                        <TableCell>{activity.sku || activity.productId?.sku || '-'}</TableCell>
+                        <TableCell>{activity.requestedQuantity ?? '-'}</TableCell>
+                        <TableCell className="max-w-xs truncate">{activity.supplierEmail || '-'}</TableCell>
                         <TableCell>
-                          <input
-                            type="checkbox"
-                            checked={activity.human_review}
-                            readOnly
-                            className="h-4 w-4 rounded border-border"
-                          />
-                  </TableCell>
-                        <TableCell className="max-w-xs truncate">{activity.details}</TableCell>
+                          <Badge variant={getRestockStatusVariant(activity.status)}>
+                            {activity.status || '-'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {activity.emailSentAt ? formatDateTime(activity.emailSentAt) : '-'}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{activity.notes || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

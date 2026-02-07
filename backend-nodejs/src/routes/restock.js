@@ -54,6 +54,157 @@ router.get('/', isAdminOrManager, async (req, res) => {
   }
 });
 
+// @route   POST /api/restock/run-procurement
+// @desc    Run procurement agent: create restock requests for low-stock products and email suppliers
+// @access  Private/Admin/Manager
+router.post('/run-procurement', isAdminOrManager, async (req, res) => {
+  try {
+    const lowStockProducts = await Product.find({
+      isActive: true,
+      $expr: { $lt: ['$stockQuantity', '$minThreshold'] }
+    }).sort({ stockQuantity: 1 });
+
+    const results = [];
+    let createdRequests = 0;
+    let emailed = 0;
+    let skippedMissingSupplierEmail = 0;
+    let skippedAlreadyEmailed = 0;
+    let failures = 0;
+
+    for (const product of lowStockProducts) {
+      const supplierEmail = product?.supplier?.email;
+      const supplierName = product?.supplier?.name;
+
+      if (!supplierEmail) {
+        skippedMissingSupplierEmail += 1;
+        results.push({
+          productId: product._id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: product.stockQuantity,
+          threshold: product.minThreshold,
+          supplierEmail: null,
+          restockRequestId: null,
+          created: false,
+          emailSent: false,
+          status: 'skipped',
+          reason: 'missing_supplier_email'
+        });
+        continue;
+      }
+
+      const requestedQuantity = Math.max((product.minThreshold || 0) - (product.stockQuantity || 0), 1);
+
+      const existingOpen = await RestockRequest.findOne({
+        productId: product._id,
+        status: { $in: [RESTOCK_STATUS.PENDING, RESTOCK_STATUS.EMAIL_SENT] }
+      }).sort({ createdAt: -1 });
+
+      if (existingOpen && existingOpen.status === RESTOCK_STATUS.EMAIL_SENT && existingOpen.emailSentAt) {
+        skippedAlreadyEmailed += 1;
+        results.push({
+          productId: product._id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: product.stockQuantity,
+          threshold: product.minThreshold,
+          supplierEmail,
+          restockRequestId: existingOpen._id,
+          created: false,
+          emailSent: true,
+          status: 'skipped',
+          reason: 'already_emailed'
+        });
+        continue;
+      }
+
+      let request = existingOpen;
+      let created = false;
+
+      if (!request) {
+        request = await RestockRequest.create({
+          productId: product._id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: product.stockQuantity,
+          threshold: product.minThreshold,
+          requestedQuantity,
+          supplierEmail,
+          supplierName,
+          status: RESTOCK_STATUS.PENDING
+        });
+        createdRequests += 1;
+        created = true;
+      } else {
+        request.productName = product.name;
+        request.sku = product.sku;
+        request.currentStock = product.stockQuantity;
+        request.threshold = product.minThreshold;
+        request.requestedQuantity = requestedQuantity;
+        request.supplierEmail = request.supplierEmail || supplierEmail;
+        request.supplierName = request.supplierName || supplierName;
+        await request.save();
+      }
+
+      const emailResult = await emailService.sendRestockEmail(product, request);
+
+      if (emailResult.success) {
+        request.emailSentAt = new Date();
+        request.status = RESTOCK_STATUS.EMAIL_SENT;
+        await request.save();
+        emailed += 1;
+
+        results.push({
+          productId: product._id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: product.stockQuantity,
+          threshold: product.minThreshold,
+          supplierEmail,
+          restockRequestId: request._id,
+          created,
+          emailSent: true,
+          status: 'emailed'
+        });
+      } else {
+        failures += 1;
+        results.push({
+          productId: product._id,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: product.stockQuantity,
+          threshold: product.minThreshold,
+          supplierEmail,
+          restockRequestId: request._id,
+          created,
+          emailSent: false,
+          status: 'failed',
+          error: emailResult.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Procurement run completed',
+      data: {
+        lowStockProducts: lowStockProducts.length,
+        createdRequests,
+        emailed,
+        skippedMissingSupplierEmail,
+        skippedAlreadyEmailed,
+        failures,
+        results
+      }
+    });
+  } catch (error) {
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 // @route   POST /api/restock/:id/resend-email
 // @desc    Resend restock email
 // @access  Private/Admin/Manager
