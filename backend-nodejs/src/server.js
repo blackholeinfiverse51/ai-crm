@@ -16,6 +16,7 @@ import orderRoutes from './routes/orders.js';
 import inventoryRoutes from './routes/inventory.js';
 import restockRoutes from './routes/restock.js';
 import dashboardRoutes from './routes/dashboard.js';
+import supplierRoutes from './routes/suppliers.js';
 
 // Load environment variables
 dotenv.config();
@@ -29,11 +30,13 @@ connectDatabase();
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
+// Rate limiting (relaxed for development)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 for dev, 100 for production
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
@@ -73,6 +76,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/restock', restockRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/suppliers', supplierRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -88,7 +92,8 @@ app.get('/', (req, res) => {
       orders: '/api/orders',
       inventory: '/api/inventory',
       restock: '/api/restock',
-      dashboard: '/api/dashboard'
+      dashboard: '/api/dashboard',
+      suppliers: '/api/suppliers'
     }
   });
 });

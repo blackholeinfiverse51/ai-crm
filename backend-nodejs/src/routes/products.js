@@ -80,6 +80,14 @@ router.post('/', isAdminOrManager, [
   body('minThreshold').isNumeric().withMessage('Minimum threshold must be a number')
 ], validate, async (req, res) => {
   try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user._id) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+
     const productData = {
       ...req.body,
       createdBy: req.user._id
@@ -93,6 +101,14 @@ router.post('/', isAdminOrManager, [
       data: { product }
     });
   } catch (error) {
+    // Handle duplicate SKU error
+    if (error.code === 11000) {
+      return res.status(HTTP_STATUS.CONFLICT).json({
+        success: false,
+        message: 'A product with this SKU already exists'
+      });
+    }
+    
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: error.message

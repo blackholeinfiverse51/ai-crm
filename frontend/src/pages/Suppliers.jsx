@@ -4,10 +4,13 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  Edit,
   LayoutDashboard,
   Mail,
   Phone,
   Plus,
+  Settings,
+  Trash2,
 } from 'lucide-react';
 import Card, { CardContent } from '@/components/common/ui/Card';
 import Button from '@/components/common/ui/Button';
@@ -27,16 +30,20 @@ export const Suppliers = () => {
   const [success, setSuccess] = useState(null);
   
   // UI state (matches screenshot tabs)
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'current' | 'add'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'current' | 'add' | 'edit'
   const [expandedSupplierId, setExpandedSupplierId] = useState(null);
+  const [editingSupplierId, setEditingSupplierId] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [supplierToDelete, setSupplierToDelete] = useState(null);
   
   // Add supplier form state
   const [formData, setFormData] = useState({
-    supplier_id: '',
     name: '',
     contact_email: '',
     contact_phone: '',
+    address: '',
     lead_time_days: 7,
+    rating: 0,
     is_active: true
   });
 
@@ -48,10 +55,16 @@ export const Suppliers = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${API_BASE_URL}/procurement/suppliers`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/suppliers`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) throw new Error('Failed to load suppliers');
       const data = await response.json();
-      setSuppliers(data.suppliers || []);
+      setSuppliers(data.data?.suppliers || []);
     } catch (err) {
       setError(err.message);
       console.error('Error loading suppliers:', err);
@@ -64,18 +77,26 @@ export const Suppliers = () => {
     e.preventDefault();
     try {
       setError(null);
-      const response = await fetch(`${API_BASE_URL}/procurement/suppliers`, {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/suppliers`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({
-          ...formData,
-          supplier_id: formData.supplier_id.toUpperCase().trim()
+          name: formData.name,
+          email: formData.contact_email,
+          phone: formData.contact_phone,
+          address: formData.address,
+          leadTimeDays: formData.lead_time_days,
+          rating: formData.rating
         })
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to create supplier');
+        throw new Error(errorData.message || 'Failed to create supplier');
       }
       
       setSuccess('Supplier created successfully!');
@@ -88,15 +109,102 @@ export const Suppliers = () => {
     }
   };
 
+  const handleEditSupplier = async (e) => {
+    e.preventDefault();
+    try {
+      setError(null);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/suppliers/${editingSupplierId}`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.contact_email,
+          phone: formData.contact_phone,
+          address: formData.address,
+          leadTimeDays: formData.lead_time_days,
+          rating: formData.rating,
+          isActive: formData.is_active
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update supplier');
+      }
+      
+      setSuccess('Supplier updated successfully!');
+      resetForm();
+      setEditingSupplierId(null);
+      loadSuppliers();
+      setActiveTab('current');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteSupplier = async () => {
+    try {
+      setError(null);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/suppliers/${supplierToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}` 
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete supplier');
+      }
+      
+      setSuccess('Supplier deleted successfully!');
+      setShowDeleteDialog(false);
+      setSupplierToDelete(null);
+      loadSuppliers();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message);
+      setShowDeleteDialog(false);
+      setSupplierToDelete(null);
+    }
+  };
+
+  const startEdit = (supplier) => {
+    setFormData({
+      name: supplier.name,
+      contact_email: supplier.email || '',
+      contact_phone: supplier.phone || '',
+      address: supplier.address || '',
+      lead_time_days: supplier.leadTimeDays || 7,
+      rating: supplier.rating || 0,
+      is_active: supplier.isActive
+    });
+    setEditingSupplierId(supplier.id);
+    setActiveTab('edit');
+  };
+
+  const startDelete = (supplier) => {
+    setSupplierToDelete(supplier);
+    setShowDeleteDialog(true);
+  };
+
   const resetForm = () => {
     setFormData({
-      supplier_id: '',
       name: '',
       contact_email: '',
       contact_phone: '',
+      address: '',
       lead_time_days: 7,
+      rating: 0,
       is_active: true
     });
+    setEditingSupplierId(null);
   };
 
   const toggleExpanded = (supplierId) => {
@@ -112,7 +220,7 @@ export const Suppliers = () => {
   // Overview computed metrics + charts (based on loaded suppliers)
   const overview = useMemo(() => {
     const total = suppliers.length;
-    const active = suppliers.filter((s) => s.is_active !== false).length;
+    const active = suppliers.filter((s) => s.isActive !== false).length;
     const inactive = total - active;
     const withEmail = suppliers.filter((s) => !!s.contact_email).length;
     const withPhone = suppliers.filter((s) => !!s.contact_phone).length;
@@ -136,7 +244,7 @@ export const Suppliers = () => {
       .sort((a, b) => (Number(b.lead_time_days) || 0) - (Number(a.lead_time_days) || 0))
       .slice(0, 8)
       .map((s) => ({
-        name: (s.name || s.supplier_id || 'Supplier').slice(0, 12),
+        name: (s.name || s.id || 'Supplier').slice(0, 12),
         days: Number(s.lead_time_days) || 0,
       }));
 
@@ -301,21 +409,21 @@ export const Suppliers = () => {
           ) : (
             <div className="space-y-3">
               {suppliers.map((s) => {
-                const isExpanded = expandedSupplierId === s.supplier_id;
+                const isExpanded = expandedSupplierId === s.id;
                 return (
-                  <div key={s.supplier_id} className="border border-border rounded-lg bg-card shadow-xl">
+                  <div key={s.id} className="border border-border rounded-lg bg-card shadow-xl">
                     <button
                       type="button"
-                      onClick={() => toggleExpanded(s.supplier_id)}
+                      onClick={() => toggleExpanded(s.id)}
                       className="w-full flex items-center justify-between px-4 py-4"
                     >
                       <div className="flex items-center gap-3">
                         <ChevronRight className={`h-5 w-5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         <Building2 className="h-5 w-5 text-muted-foreground" />
-                        <span className="font-semibold">{s.name || s.supplier_id}</span>
+                        <span className="font-semibold">{s.name || s.id}</span>
                       </div>
-                      <Badge variant={s.is_active ? 'success' : 'muted'}>
-                        {s.is_active ? 'Active' : 'Inactive'}
+                      <Badge variant={s.isActive ? 'success' : 'muted'}>
+                        {s.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </button>
 
@@ -324,7 +432,7 @@ export const Suppliers = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 text-sm">
                           <div className="space-y-2">
                             <div className="text-muted-foreground">Supplier ID</div>
-                            <div className="font-mono">{s.supplier_id}</div>
+                            <div className="font-mono">{s.id}</div>
                           </div>
                           <div className="space-y-2">
                             <div className="text-muted-foreground">Lead Time</div>
@@ -337,16 +445,44 @@ export const Suppliers = () => {
                             <div className="text-muted-foreground">Contact Email</div>
                             <div className="flex items-center gap-2">
                               <Mail className="h-4 w-4 text-muted-foreground" />
-                              <span className="truncate">{s.contact_email || '—'}</span>
+                              <span className="truncate">{s.email || '—'}</span>
                             </div>
                           </div>
                           <div className="space-y-2">
                             <div className="text-muted-foreground">Contact Phone</div>
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-muted-foreground" />
-                              <span>{s.contact_phone || '—'}</span>
+                              <span>{s.phone || '—'}</span>
                             </div>
                           </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEdit(s);
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <Settings className="h-4 w-4" />
+                            Manage
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startDelete(s);
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
                         )}
@@ -358,7 +494,122 @@ export const Suppliers = () => {
         </div>
       )}
 
-      {/* Add Supplier */}
+      {/* Edit Supplier */}
+      {activeTab === 'edit' && editingSupplierId && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-heading font-bold tracking-tight">Edit Supplier</h1>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                resetForm();
+                setActiveTab('current');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+
+          <Card className="border border-border">
+            <CardContent className="p-6">
+              <form onSubmit={handleEditSupplier} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Input
+                    label="Company Name*"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="TechParts Supply Co."
+                    required
+                  />
+                  <Input
+                    label="Contact Email"
+                    value={formData.contact_email}
+                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                    placeholder="contact@supplier.com"
+                    type="email"
+                  />
+                  <Input
+                    label="Contact Phone"
+                    value={formData.contact_phone}
+                    onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                    placeholder="+1-555-0123"
+                  />
+                  <Input
+                    label="Address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="123 Business St, City, State"
+                  />
+                  <div className="w-full">
+                    <label className="block text-sm font-medium mb-2">Lead Time (days)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="365"
+                      value={formData.lead_time_days}
+                      onChange={(e) => setFormData({ ...formData, lead_time_days: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <div className="w-full">
+                    <label className="block text-sm font-medium mb-2">Rating (0-5)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.1"
+                      value={formData.rating}
+                      onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <div className="w-full">
+                    <label className="block text-sm font-medium mb-2">Rating (0-5)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.1"
+                      value={formData.rating}
+                      onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="is_active_edit"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="rounded border-border"
+                  />
+                  <label htmlFor="is_active_edit" className="text-sm font-medium">Active Supplier</label>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button type="submit" className="flex items-center gap-2">
+                    <Edit className="h-4 w-4" />
+                    Update Supplier
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      resetForm();
+                      setActiveTab('current');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       {activeTab === 'add' && (
           <div className="space-y-4">
           <h1 className="text-3xl font-heading font-bold tracking-tight">Add New Supplier</h1>
@@ -368,11 +619,18 @@ export const Suppliers = () => {
               <form onSubmit={handleAddSupplier} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input
-                    label="Supplier ID*"
-                value={formData.supplier_id}
-                onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
-                    placeholder="SUPPLIER_001"
-                required
+                    label="Company Name*"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="TechParts Supply Co."
+                    required
+            />
+              <Input
+                label="Contact Email"
+                value={formData.contact_email}
+                onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                placeholder="contact@supplier.com"
+                type="email"
               />
               <Input
                 label="Contact Phone"
@@ -380,13 +638,12 @@ export const Suppliers = () => {
                 onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
                 placeholder="+1-555-0123"
               />
-            <Input
-                    label="Company Name*"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="TechParts Supply Co."
-                    required
-            />
+              <Input
+                label="Address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="123 Business St, City, State"
+              />
 
                   <div className="w-full">
                     <label className="block text-sm font-medium mb-2">Lead Time (days)</label>
@@ -437,6 +694,52 @@ export const Suppliers = () => {
             </CardContent>
           </Card>
               </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && supplierToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Delete Supplier</h3>
+                <p className="text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm">
+                Are you sure you want to delete <strong>{supplierToDelete.name}</strong>?
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                This will permanently remove the supplier from your system.
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setSupplierToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteSupplier}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

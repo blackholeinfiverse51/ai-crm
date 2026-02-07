@@ -188,18 +188,18 @@ export const Products = () => {
     setSuccess(null);
     
     try {
+      // Map frontend fields to MongoDB backend schema
       const productData = {
-        product_id: formData.product_id.toUpperCase().trim(),
+        sku: formData.product_id.toUpperCase().trim(),
         name: formData.name.trim(),
         category: formData.category,
-        description: formData.description.trim() || null,
-        unit_price: parseFloat(formData.unit_price),
-        supplier_id: formData.supplier_id.trim(),
-        reorder_point: parseInt(formData.reorder_point) || 10,
-        max_stock: parseInt(formData.max_stock) || 100,
-        weight_kg: parseFloat(formData.weight_kg) || 0,
-        dimensions: formData.dimensions.trim() || null,
-        is_active: true,
+        description: formData.description.trim() || '',
+        costPrice: parseFloat(formData.unit_price) || 0,
+        sellingPrice: parseFloat(formData.unit_price) || 0,
+        stockQuantity: parseInt(formData.max_stock) || 0,
+        minThreshold: parseInt(formData.reorder_point) || 10,
+        unit: 'pieces',
+        isActive: true,
       };
       
       await productAPI.createProduct(productData);
@@ -221,7 +221,14 @@ export const Products = () => {
       
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to create product');
+      console.error('Product creation error:', err);
+      if (err.response?.status === 409) {
+        setError(`Product with SKU "${formData.product_id.toUpperCase()}" already exists. Please use a different SKU.`);
+      } else if (err.response?.status === 401) {
+        setError('Your session has expired. Please login again.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to create product');
+      }
     }
   };
 
@@ -232,18 +239,19 @@ export const Products = () => {
     setSuccess(null);
     
     try {
+      // Map frontend fields to MongoDB backend schema
       const updateData = {};
       if (formData.name) updateData.name = formData.name.trim();
       if (formData.category) updateData.category = formData.category;
-      if (formData.description !== undefined) updateData.description = formData.description.trim() || null;
-      if (formData.unit_price) updateData.unit_price = parseFloat(formData.unit_price);
-      if (formData.supplier_id) updateData.supplier_id = formData.supplier_id.trim();
-      if (formData.reorder_point) updateData.reorder_point = parseInt(formData.reorder_point);
-      if (formData.max_stock) updateData.max_stock = parseInt(formData.max_stock);
-      if (formData.weight_kg !== undefined) updateData.weight_kg = parseFloat(formData.weight_kg) || 0;
-      if (formData.dimensions !== undefined) updateData.dimensions = formData.dimensions.trim() || null;
+      if (formData.description !== undefined) updateData.description = formData.description.trim() || '';
+      if (formData.unit_price) {
+        updateData.costPrice = parseFloat(formData.unit_price);
+        updateData.sellingPrice = parseFloat(formData.unit_price);
+      }
+      if (formData.reorder_point) updateData.minThreshold = parseInt(formData.reorder_point);
+      if (formData.max_stock) updateData.stockQuantity = parseInt(formData.max_stock);
       
-      await productAPI.updateProduct(selectedProduct.id, updateData);
+      await productAPI.updateProduct(selectedProduct._id || selectedProduct.id, updateData);
       
       // Upload image if provided
       if (imageFile && selectedProduct.id) {
@@ -309,16 +317,16 @@ export const Products = () => {
   const openEditModal = (product) => {
     setSelectedProduct(product);
     setFormData({
-      product_id: product.product_id,
+      product_id: product.sku,
       name: product.name,
       category: product.category,
       description: product.description || '',
-      unit_price: product.unit_price || product.price,
-      supplier_id: product.supplier_id || '',
-      reorder_point: product.reorder_point || 10,
-      max_stock: product.max_stock || 100,
-      weight_kg: product.weight_kg || 0,
-      dimensions: product.dimensions || '',
+      unit_price: product.sellingPrice || product.costPrice || 0,
+      supplier_id: product.supplier?.name || '',
+      reorder_point: product.minThreshold || 10,
+      max_stock: product.stockQuantity || 0,
+      weight_kg: 0,
+      dimensions: '',
     });
     setImagePreview(product.image);
     setShowEditModal(true);
@@ -348,7 +356,7 @@ export const Products = () => {
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.product_id?.toLowerCase().includes(searchQuery.toLowerCase());
+                         product.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
@@ -539,7 +547,7 @@ export const Products = () => {
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredProducts.map((product) => (
-                <Card key={product.id || product.product_id} hover className="overflow-hidden">
+                <Card key={product._id || product.id} hover className="overflow-hidden">
                   <div className="relative h-48 bg-muted flex items-center justify-center">
                     <img 
                       src={product.image || product.primary_image_url || 'https://via.placeholder.com/200'} 
@@ -558,10 +566,10 @@ export const Products = () => {
                   </div>
                   <CardContent className="pt-4">
                     <h3 className="font-semibold text-lg mb-1">{product.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-2">{product.product_id}</p>
+                    <p className="text-sm text-muted-foreground mb-2">{product.sku}</p>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-2xl font-bold">{product.unit_price || product.price}</span>
-                      <span className="text-sm text-muted-foreground">Stock: {product.stock || 0}</span>
+                      <span className="text-2xl font-bold">₹{product.sellingPrice || 0}</span>
+                      <span className="text-sm text-muted-foreground">Stock: {product.stockQuantity || 0}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button 
@@ -612,7 +620,7 @@ export const Products = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredProducts.map((product) => (
-                      <TableRow key={product.id || product.product_id}>
+                      <TableRow key={product._id || product.id}>
                         <TableCell>
                           <img 
                             src={product.image || product.primary_image_url || 'https://via.placeholder.com/200'} 
@@ -626,13 +634,13 @@ export const Products = () => {
                         <TableCell>
                           <div>
                             <div className="font-medium">{product.name}</div>
-                            <div className="text-sm text-muted-foreground">{product.product_id}</div>
+                            <div className="text-sm text-muted-foreground">{product.sku}</div>
                           </div>
                         </TableCell>
                         <TableCell>{product.category}</TableCell>
-                        <TableCell className="font-semibold">{product.unit_price || product.price}</TableCell>
-                        <TableCell>{product.stock || 0}</TableCell>
-                        <TableCell>{product.supplier_id || 'N/A'}</TableCell>
+                        <TableCell className="font-semibold">₹{product.sellingPrice || 0}</TableCell>
+                        <TableCell>{product.stockQuantity || 0}</TableCell>
+                        <TableCell>{product.supplier?.name || 'N/A'}</TableCell>
                         <TableCell>
                           <Badge variant={getStatusVariant(product.status)}>
                             {product.status?.replace('_', ' ') || 'Unknown'}
@@ -728,7 +736,7 @@ export const Products = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.map((product) => (
-                    <TableRow key={product.id || product.product_id}>
+                    <TableRow key={product._id || product.id}>
                       <TableCell>
                         <img 
                           src={product.image || product.primary_image_url || 'https://via.placeholder.com/200'} 
@@ -742,13 +750,13 @@ export const Products = () => {
                       <TableCell>
                         <div>
                           <div className="font-medium">{product.name}</div>
-                          <div className="text-sm text-muted-foreground">{product.product_id}</div>
+                          <div className="text-sm text-muted-foreground">{product.sku}</div>
                         </div>
                       </TableCell>
                       <TableCell>{product.category}</TableCell>
-                      <TableCell className="font-semibold">{product.unit_price || product.price}</TableCell>
-                      <TableCell>{product.stock || 0}</TableCell>
-                      <TableCell>{product.supplier_id || 'N/A'}</TableCell>
+                      <TableCell className="font-semibold">₹{product.sellingPrice || 0}</TableCell>
+                      <TableCell>{product.stockQuantity || 0}</TableCell>
+                      <TableCell>{product.supplier?.name || 'N/A'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(product.status)}>
                           {product.status?.replace('_', ' ') || 'Unknown'}
@@ -776,7 +784,7 @@ export const Products = () => {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleDeleteProduct(product.id || product.product_id)}
+                            onClick={() => handleDeleteProduct(product._id || product.id)}
                             className="text-destructive hover:text-destructive"
                           >
                             <X className="h-4 w-4" />
