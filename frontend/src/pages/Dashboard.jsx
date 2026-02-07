@@ -57,123 +57,141 @@ export const Dashboard = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch KPIs
-      const kpisResponse = await dashboardAPI.getKPIs();
-      const kpis = kpisResponse.data?.kpis || {};
+      // Dashboard stats (MongoDB backend)
+      const statsResponse = await dashboardAPI.getDashboardStats();
+      const stats = statsResponse.data?.data || {};
 
-      // Fetch product stats
-      let productStats = { total_products: 0, in_stock: 0, low_stock: 0, out_of_stock: 0 };
+      // Product summary stats
+      let productStats = {
+        totalProducts: 0,
+        activeProducts: 0,
+        lowStockProducts: 0,
+        outOfStock: 0,
+      };
       try {
-        const productResponse = await productAPI.getStats();
-        productStats = productResponse.data || productStats;
+        const productResponse = await productAPI.getStats(true);
+        productStats = productResponse.data?.data || productStats;
       } catch (err) {
         console.warn('Failed to fetch product stats:', err);
       }
 
-      // Fetch accounts
-      let accountsCount = 0;
-      try {
-        const accountsResponse = await dashboardAPI.getAccounts({ limit: 1 });
-        accountsCount = accountsResponse.data?.total || accountsResponse.data?.accounts?.length || 0;
-      } catch (err) {
-        console.warn('Failed to fetch accounts:', err);
-      }
-
-      // Fetch suppliers
+      // Suppliers count
       let suppliersCount = 0;
       try {
         const suppliersResponse = await dashboardAPI.getSuppliers();
-        suppliersCount = suppliersResponse.data?.suppliers?.length || suppliersResponse.data?.count || 0;
+        suppliersCount = suppliersResponse.data?.data?.count || suppliersResponse.data?.data?.suppliers?.length || 0;
       } catch (err) {
         console.warn('Failed to fetch suppliers:', err);
       }
 
-      // Fetch orders
-      let ordersCount = 0;
+      // Recent activity (orders + low stock)
+      let recentOrders = [];
+      let lowStockProducts = [];
       try {
-        const ordersResponse = await dashboardAPI.getOrders({ limit: 1 });
-        ordersCount = ordersResponse.data?.count || ordersResponse.data?.orders?.length || 0;
+        const activityResponse = await dashboardAPI.getRecentActivity({ limit: 10 });
+        recentOrders = activityResponse.data?.data?.recentOrders || [];
+        lowStockProducts = activityResponse.data?.data?.lowStockProducts || [];
       } catch (err) {
-        console.warn('Failed to fetch orders:', err);
+        console.warn('Failed to fetch recent activity:', err);
       }
 
-      // Fetch charts data
-      let chartsData = { orderStatus: {}, shipmentStatus: {}, inventory: { labels: [], currentStock: [], reorderPoint: [] } };
-      try {
-        const chartsResponse = await dashboardAPI.getCharts();
-        chartsData = chartsResponse.data || chartsData;
-      } catch (err) {
-        console.warn('Failed to fetch charts:', err);
-      }
+      const totalOrders = stats.orders?.total ?? 0;
+      const activeAccounts = stats.users?.activeCustomers ?? 0;
+      const productsCount = productStats.totalProducts ?? stats.products?.total ?? 0;
+      const revenueTotal = Number(stats.revenue?.total ?? 0);
 
-      // Fetch recent activity
-      let activity = [];
-      try {
-        const activityResponse = await dashboardAPI.getRecentActivity();
-        activity = activityResponse.data?.activity || [];
-      } catch (err) {
-        console.warn('Failed to fetch activity:', err);
-      }
-
-      // Update metrics
+      // Update metrics (only values we can back with real APIs)
       setMetrics({
-        totalOrders: kpis.total_orders || ordersCount || 0,
-        activeAccounts: accountsCount || 0,
-        products: productStats.total_products || 0,
-        suppliers: suppliersCount || 0,
-        employees: 0, // Will be fetched from employee system if available
-        emailsSent: 0, // Will be fetched from email system if available
-        rlActions: kpis.automation_rate || 0,
-        aiWorkflows: kpis.pending_reviews || 0,
-        revenue: 0, // Calculate from orders if needed
+        totalOrders,
+        activeAccounts,
+        products: productsCount,
+        suppliers: suppliersCount,
+        employees: 0,
+        emailsSent: 0,
+        rlActions: 0,
+        aiWorkflows: 0,
+        revenue: Number.isFinite(revenueTotal) ? revenueTotal : 0,
       });
 
-      // Process sales data from orders
-      const processedSalesData = [
-        { name: 'Mon', sales: kpis.total_orders * 100 || 0, orders: kpis.total_orders || 0 },
-        { name: 'Tue', sales: (kpis.total_orders * 95) || 0, orders: Math.floor(kpis.total_orders * 0.95) || 0 },
-        { name: 'Wed', sales: (kpis.total_orders * 110) || 0, orders: Math.floor(kpis.total_orders * 1.1) || 0 },
-        { name: 'Thu', sales: (kpis.total_orders * 105) || 0, orders: Math.floor(kpis.total_orders * 1.05) || 0 },
-        { name: 'Fri', sales: (kpis.total_orders * 120) || 0, orders: Math.floor(kpis.total_orders * 1.2) || 0 },
-  ];
-      setSalesData(processedSalesData);
-
-      // Process category data
-      const processedCategoryData = [
-        { name: 'Mon', logistics: kpis.active_shipments || 0, crm: accountsCount || 0, inventory: productStats.total_products || 0 },
-        { name: 'Tue', logistics: Math.floor((kpis.active_shipments || 0) * 1.1), crm: Math.floor((accountsCount || 0) * 1.05), inventory: productStats.total_products || 0 },
-        { name: 'Wed', logistics: Math.floor((kpis.active_shipments || 0) * 0.95), crm: Math.floor((accountsCount || 0) * 1.1), inventory: productStats.total_products || 0 },
-        { name: 'Thu', logistics: Math.floor((kpis.active_shipments || 0) * 1.2), crm: accountsCount || 0, inventory: productStats.total_products || 0 },
-        { name: 'Fri', logistics: kpis.active_shipments || 0, crm: Math.floor((accountsCount || 0) * 0.95), inventory: productStats.total_products || 0 },
-  ];
-      setCategoryData(processedCategoryData);
-
-      // Process recent activity
-      const formattedActivity = activity.slice(0, 5).map((item, index) => ({
-        id: index + 1,
-        type: item.action?.toLowerCase().includes('order') ? 'order' :
-              item.action?.toLowerCase().includes('stock') ? 'inventory' :
-              item.action?.toLowerCase().includes('delivery') ? 'delivery' :
-              item.action?.toLowerCase().includes('agent') ? 'agent' : 'crm',
-        message: item.details || item.action || 'System activity',
-        time: new Date(item.timestamp || Date.now()),
-        status: item.confidence > 0.8 ? 'success' : item.confidence > 0.5 ? 'info' : 'warning'
+      // Sales & Orders Trend (last 5 days from recent orders)
+      const dayLabels = ['4d', '3d', '2d', '1d', 'Today'];
+      const buckets = dayLabels.map((label, idx) => ({
+        name: label,
+        sales: 0,
+        orders: 0,
+        _minTime: Date.now() - (4 - idx) * 24 * 60 * 60 * 1000,
+        _maxTime: Date.now() - (3 - idx) * 24 * 60 * 60 * 1000,
       }));
+
+      recentOrders.forEach((order) => {
+        const createdAt = new Date(order.createdAt || order.created_at || Date.now()).getTime();
+        const amount = Number(order.totalAmount ?? order.total_amount ?? 0);
+        const bucket = buckets.find(b => createdAt >= b._minTime && createdAt < b._maxTime);
+        if (bucket) {
+          bucket.orders += 1;
+          bucket.sales += Number.isFinite(amount) ? amount : 0;
+        }
+      });
+
+      setSalesData(buckets.map(({ _minTime, _maxTime, ...rest }) => rest));
+
+      // Activity by Category (real counts snapshot)
+      setCategoryData([
+        {
+          name: 'Now',
+          logistics: stats.orders?.dispatched ?? 0,
+          crm: activeAccounts,
+          inventory: stats.products?.lowStock ?? productStats.lowStockProducts ?? 0,
+        }
+      ]);
+
+      // Recent Activity UI list
+      const activityItems = [];
+
+      recentOrders.forEach((order) => {
+        const status = String(order.status || '').toUpperCase();
+        const time = new Date(order.createdAt || order.created_at || Date.now());
+        const number = order.orderNumber || `#${String(order._id || '').slice(-8)}`;
+        activityItems.push({
+          type: 'order',
+          message: `Order ${number} - ${status || 'PLACED'}`,
+          time,
+          status: status === 'DELIVERED' ? 'success' : status === 'DISPATCHED' ? 'info' : 'warning'
+        });
+      });
+
+      lowStockProducts.forEach((product) => {
+        const qty = product.stockQuantity ?? 0;
+        const threshold = product.minThreshold ?? 0;
+        const severity = qty === 0 ? 'warning' : qty < threshold ? 'warning' : 'info';
+        const time = new Date(product.updatedAt || product.createdAt || Date.now());
+        activityItems.push({
+          type: 'inventory',
+          message: `Low stock: ${product.name} (${qty})`,
+          time,
+          status: severity
+        });
+      });
+
+      const formattedActivity = activityItems
+        .sort((a, b) => b.time.getTime() - a.time.getTime())
+        .slice(0, 5)
+        .map((item, index) => ({
+          id: index + 1,
+          ...item
+        }));
+
       setRecentActivity(formattedActivity.length > 0 ? formattedActivity : [
         { id: 1, type: 'order', message: 'No recent activity', time: new Date(), status: 'info' }
       ]);
 
-      // System status
+      // System status (backed by stats)
       setSystemStatus([
-        { label: 'CRM System', isOnline: accountsCount > 0 },
-        { label: 'Inventory', isOnline: productStats.total_products > 0 },
-        { label: 'Employee System', isOnline: true },
-        { label: 'EMS Automation', isOnline: true },
-        { label: 'RL Learning', isOnline: kpis.automation_rate > 0 },
-        { label: 'AI Decisions', isOnline: true },
-        { label: 'Logistics', isOnline: kpis.total_orders > 0 },
+        { label: 'CRM System', isOnline: activeAccounts > 0 },
+        { label: 'Inventory', isOnline: productsCount > 0 },
+        { label: 'Logistics', isOnline: totalOrders > 0 },
         { label: 'Suppliers', isOnline: suppliersCount > 0 },
-        { label: 'AI Agents', isOnline: kpis.automation_rate > 0 },
+        { label: 'Restock', isOnline: (stats.restock?.pending ?? 0) >= 0 },
       ]);
 
     } catch (err) {
