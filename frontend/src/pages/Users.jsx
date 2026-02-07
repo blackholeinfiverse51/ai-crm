@@ -96,7 +96,19 @@ export const Users = () => {
     try {
       setLoading(true);
       setError(null);
-      await userAPI.createUser(userForm);
+      // Map username to name for MongoDB backend and map roles
+      const roleMap = {
+        'operator': 'manager',
+        'user': 'customer',
+        'admin': 'admin'
+      };
+      const userData = {
+        name: userForm.username,
+        email: userForm.email,
+        password: userForm.password,
+        role: roleMap[userForm.role] || 'customer'
+      };
+      await userAPI.createUser(userData);
       setSuccess('User created successfully');
       setShowAddModal(false);
       setUserForm({ username: '', email: '', password: '', role: 'operator' });
@@ -105,7 +117,7 @@ export const Users = () => {
         setSuccess(null);
       }, 1000);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to create user');
+      setError(err.response?.data?.message || err.message || 'Failed to create user');
     } finally {
       setLoading(false);
     }
@@ -116,7 +128,19 @@ export const Users = () => {
     try {
       setLoading(true);
       setError(null);
-      await userAPI.updateUser(selectedUser.id, userForm);
+      // Map username to name for MongoDB backend and map roles
+      const roleMap = {
+        'operator': 'manager',
+        'user': 'customer',
+        'admin': 'admin'
+      };
+      const userData = {
+        ...(userForm.username && { name: userForm.username }),
+        ...(userForm.email && { email: userForm.email }),
+        ...(userForm.password && { password: userForm.password }),
+        ...(userForm.role && { role: roleMap[userForm.role] || userForm.role })
+      };
+      await userAPI.updateUser(selectedUser.id, userData);
       setSuccess('User updated successfully');
       setShowEditModal(false);
       setSelectedUser(null);
@@ -126,7 +150,7 @@ export const Users = () => {
         setSuccess(null);
       }, 1000);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to update user');
+      setError(err.response?.data?.message || err.message || 'Failed to update user');
     } finally {
       setLoading(false);
     }
@@ -386,9 +410,9 @@ export const Users = () => {
             value={userForm.role}
             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
             options={[
-              { value: 'operator', label: 'Operator' },
               { value: 'admin', label: 'Admin' },
-              { value: 'user', label: 'User' },
+              { value: 'operator', label: 'Manager' },
+              { value: 'user', label: 'Customer' },
             ]}
           />
         </div>
@@ -433,9 +457,9 @@ export const Users = () => {
             value={userForm.role}
             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
             options={[
-              { value: 'operator', label: 'Operator' },
               { value: 'admin', label: 'Admin' },
-              { value: 'user', label: 'User' },
+              { value: 'operator', label: 'Manager' },
+              { value: 'user', label: 'Customer' },
             ]}
           />
         </div>

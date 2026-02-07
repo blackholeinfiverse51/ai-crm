@@ -353,3 +353,47 @@ class MongoDBService:
             "total_suppliers": self.db[COLLECTIONS['suppliers']].count_documents({"is_active": True}),
             "active_shipments": self.db[COLLECTIONS['shipments']].count_documents({"status": {"$in": ["created", "picked_up", "in_transit", "out_for_delivery"]}}),
         }
+    
+    def get_low_stock_items(self, threshold: int = 10) -> List[Dict]:
+        """Get inventory items with low stock"""
+        try:
+            items = list(self.db[COLLECTIONS['inventory']].find({
+                "quantity": {"$lte": threshold},
+                "is_active": True
+            }).limit(100))
+            return [self._serialize_mongo_doc(item) for item in items]
+        except Exception as e:
+            print(f"Error getting low stock items: {e}")
+            return []
+    
+    def get_performance_metrics(self, days: int = 7) -> Dict:
+        """Get performance metrics for the last N days"""
+        try:
+            from datetime import datetime, timedelta
+            start_date = datetime.now() - timedelta(days=days)
+            
+            total_orders = self.db[COLLECTIONS['orders']].count_documents({
+                "created_at": {"$gte": start_date}
+            })
+            
+            completed_orders = self.db[COLLECTIONS['orders']].count_documents({
+                "created_at": {"$gte": start_date},
+                "status": "completed"
+            })
+            
+            automation_rate = (completed_orders / total_orders * 100) if total_orders > 0 else 0
+            
+            return {
+                "total_orders": total_orders,
+                "completed_orders": completed_orders,
+                "automation_rate": round(automation_rate, 2),
+                "period_days": days
+            }
+        except Exception as e:
+            print(f"Error getting performance metrics: {e}")
+            return {
+                "total_orders": 0,
+                "completed_orders": 0,
+                "automation_rate": 0,
+                "period_days": days
+            }

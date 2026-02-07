@@ -6,7 +6,7 @@ import Button from '../../components/common/ui/Button';
 import Input from '../../components/common/forms/Input';
 import SocialLogin from '../../components/auth/SocialLogin';
 import Alert from '../../components/common/ui/Alert';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/MongoAuthContext';
 import { isMockSupabase } from '../../lib/supabase';
 
 const Login = () => {

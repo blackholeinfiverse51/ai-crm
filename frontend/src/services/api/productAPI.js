@@ -1,51 +1,48 @@
 import apiClient from './baseAPI';
 
+// MongoDB Backend Product API
 export const productAPI = {
   // Products
   getProducts: (params = {}) => {
-    const { skip = 0, limit = 100, category, supplier_id, is_active, search } = params;
-    return apiClient.get('/products', {
+    const { page = 1, limit = 50, category, search, lowStock, isActive } = params;
+    return apiClient.get('/api/products', {
       params: {
-        skip,
+        page,
         limit,
         ...(category && { category }),
-        ...(supplier_id && { supplier_id }),
-        ...(is_active !== undefined && { is_active }),
         ...(search && { search }),
+        ...(lowStock && { lowStock }),
+        ...(isActive !== undefined && { isActive })
       }
     });
   },
-  getProduct: (id) => apiClient.get(`/products/${id}`),
-  createProduct: (data) => apiClient.post('/products', data),
-  updateProduct: (id, data) => apiClient.put(`/products/${id}`, data),
-  deleteProduct: (id) => apiClient.delete(`/products/${id}`),
   
-  // Product Images
-  uploadPrimaryImage: (productId, file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return apiClient.post(`/products/${productId}/images/primary`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-  },
-  uploadGalleryImage: (productId, file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return apiClient.post(`/products/${productId}/images/gallery`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-  },
-  deleteImage: (productId, imageType, imageUrl = null) => {
-    const params = imageUrl ? { image_url: imageUrl } : {};
-    return apiClient.delete(`/products/${productId}/images/${imageType}`, { params });
-  },
-  getProductImages: (productId) => apiClient.get(`/products/${productId}/images`),
+  getProduct: (id) => apiClient.get(`/api/products/${id}`),
   
-  // Product Categories
-  getCategories: () => apiClient.get('/products/categories'),
+  createProduct: (data) => apiClient.post('/api/products', data),
+  
+  updateProduct: (id, data) => apiClient.put(`/api/products/${id}`, data),
+  
+  deleteProduct: (id) => apiClient.delete(`/api/products/${id}`),
   
   // Product Stats
-  getStats: () => apiClient.get('/products/stats'),
+  getStats: () => apiClient.get('/api/products/stats/summary'),
+  
+  // Categories (extract from products)
+  getCategories: async () => {
+    try {
+      const response = await apiClient.get('/api/products', { params: { limit: 1000 } });
+      const products = response.data?.data?.products || [];
+      const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+      // Add default categories if no products exist yet
+      const defaultCategories = ['Grains', 'Oils', 'Spices', 'Beverages', 'Pulses', 'Condiments', 'Sweeteners', 'Other'];
+      const allCategories = categories.length > 0 ? categories : defaultCategories;
+      return { data: { categories: allCategories } };
+    } catch (error) {
+      // Return default categories on error
+      return { data: { categories: ['Grains', 'Oils', 'Spices', 'Beverages', 'Pulses', 'Condiments', 'Sweeteners', 'Other'] } };
+    }
+  }
 };
 
 export default productAPI;

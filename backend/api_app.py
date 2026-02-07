@@ -189,11 +189,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Frontend configured port
+        "http://localhost:3001",  # Frontend alternative port
         "http://localhost:5173",  # Vite default port
         "http://localhost:5174",  # Alternative Vite port
         "http://localhost:8501",  # Streamlit dashboard
         "http://localhost:8503",  # Streamlit dashboard
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:8000",  # Backend itself
@@ -667,7 +669,7 @@ def get_dashboard_kpis():
             stock_health = ((len(inventory) - low_stock_count) / len(inventory) * 100) if inventory else 100
 
             pending_pos = len([po for po in purchase_orders if po['status'] == 'pending'])
-            automation_rate = performance.get('automation_rate', 0)
+            automation_rate = performance.get('automation_rate', 0) if isinstance(performance, dict) else 0
 
             kpis = {
                 'total_orders': total_orders,
@@ -682,6 +684,9 @@ def get_dashboard_kpis():
 
         return {"kpis": kpis, "timestamp": datetime.now().isoformat()}
     except Exception as e:
+        import traceback
+        print(f"ERROR in /dashboard/kpis: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/dashboard/alerts")

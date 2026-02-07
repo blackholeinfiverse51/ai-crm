@@ -6,7 +6,7 @@ import Button from '../../components/common/ui/Button';
 import Input from '../../components/common/forms/Input';
 import PasswordStrength from '../../components/auth/PasswordStrength';
 import Alert from '../../components/common/ui/Alert';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/MongoAuthContext';
 
 const ResetPassword = () => {
   const navigate = useNavigate();

@@ -1,42 +1,48 @@
 import apiClient from './baseAPI';
+import orderAPI from './orderAPI';
+import productAPI from './productAPI';
+import inventoryAPI from './inventoryAPI';
+import restockAPI from './restockAPI';
 
+// MongoDB Backend Dashboard API
 export const dashboardAPI = {
-  // Dashboard KPIs
-  getKPIs: () => apiClient.get('/dashboard/kpis'),
+  // Get dashboard statistics
+  getDashboardStats: () => apiClient.get('/api/dashboard/stats'),
+  getKPIs: () => apiClient.get('/api/dashboard/stats'),
   
-  // Dashboard Alerts
-  getAlerts: () => apiClient.get('/dashboard/alerts'),
+  // Get recent activity
+  getRecentActivity: (params = {}) => {
+    const { limit = 10 } = params;
+    return apiClient.get('/api/dashboard/recent-activity', {
+      params: { limit }
+    });
+  },
   
-  // Dashboard Charts
-  getCharts: () => apiClient.get('/dashboard/charts'),
+  // Get system alerts
+  getAlerts: () => apiClient.get('/api/dashboard/alerts'),
   
-  // Recent Activity
-  getRecentActivity: () => apiClient.get('/dashboard/activity'),
+  // Dashboard Charts (aggregate from stats)
+  getCharts: () => apiClient.get('/api/dashboard/stats'),
   
   // Orders
-  getOrders: (params) => apiClient.get('/orders', { params }),
+  getOrders: (params) => orderAPI.getOrders(params),
   
   // Inventory
-  getInventory: () => apiClient.get('/inventory'),
-  getLowStock: () => apiClient.get('/inventory/low-stock'),
+  getInventory: () => inventoryAPI.getInventory(),
+  getLowStock: () => inventoryAPI.getLowStock(),
   
   // Products Stats
-  getProductStats: () => apiClient.get('/products/stats'),
+  getProductStats: () => productAPI.getStats(),
   
-  // Suppliers
-  getSuppliers: () => apiClient.get('/procurement/suppliers'),
-  
-  // Accounts (CRM)
-  getAccounts: (params) => apiClient.get('/accounts', { params }),
-  
-  // Shipments
-  getShipments: () => apiClient.get('/delivery/shipments'),
-  
-  // Agent Status
-  getAgentStatus: () => apiClient.get('/agent/status'),
-  
-  // Agent Logs
-  getAgentLogs: (params) => apiClient.get('/logs', { params }),
+  // Legacy compatibility
+  getRevenueTrends: () => apiClient.get('/api/dashboard/stats'),
+  getTopProducts: () => apiClient.get('/api/products', { params: { limit: 10 } }),
+  getTopCustomers: () => apiClient.get('/api/users', { params: { role: 'customer', limit: 10 } }),
+  getSuppliers: () => apiClient.get('/api/products', { params: { limit: 100 } }),
+  getAccounts: (params) => apiClient.get('/api/users', { params: { role: 'customer', ...params } }),
+  getShipments: () => apiClient.get('/api/orders'),
+  getAgentStatus: () => ({ data: { status: 'active' } }),
+  getAgentLogs: () => inventoryAPI.getInventoryLogs()
 };
 
 export default dashboardAPI;

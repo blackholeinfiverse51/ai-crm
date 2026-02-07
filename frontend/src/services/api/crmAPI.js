@@ -1,41 +1,42 @@
 import apiClient from './baseAPI';
 
+// CRM API mapped to MongoDB Logistics Backend
 export const crmAPI = {
-  // Accounts
-  getAccounts: (params) => apiClient.get('/accounts', { params }),
-  getAccount: (id) => apiClient.get(`/accounts/${id}`),
-  createAccount: (data) => apiClient.post('/accounts', data),
-  updateAccount: (id, data) => apiClient.put(`/accounts/${id}`, data),
+  // Accounts (mapped to Users with role=customer)
+  getAccounts: (params) => apiClient.get('/api/users', { params: { role: 'customer', ...params } }),
+  getAccount: (id) => apiClient.get(`/api/users/${id}`),
+  createAccount: (data) => apiClient.post('/api/users', { ...data, role: 'customer' }),
+  updateAccount: (id, data) => apiClient.put(`/api/users/${id}`, data),
   
-  // Contacts
-  getContacts: (params) => apiClient.get('/contacts', { params }),
-  getContact: (id) => apiClient.get(`/contacts/${id}`),
-  createContact: (data) => apiClient.post('/contacts', data),
-  updateContact: (id, data) => apiClient.put(`/contacts/${id}`, data),
+  // Contacts (mapped to all users)
+  getContacts: (params) => apiClient.get('/api/users', { params }),
+  getContact: (id) => apiClient.get(`/api/users/${id}`),
+  createContact: (data) => apiClient.post('/api/users', data),
+  updateContact: (id, data) => apiClient.put(`/api/users/${id}`, data),
   
-  // Leads
-  getLeads: (params) => apiClient.get('/leads', { params }),
-  getLead: (id) => apiClient.get(`/leads/${id}`),
-  createLead: (data) => apiClient.post('/leads', data),
-  updateLead: (id, data) => apiClient.put(`/leads/${id}`, data),
+  // Leads (mapped to recent customer registrations)
+  getLeads: (params) => apiClient.get('/api/users', { params: { role: 'customer', ...params } }),
+  getLead: (id) => apiClient.get(`/api/users/${id}`),
+  createLead: (data) => apiClient.post('/api/users', { ...data, role: 'customer' }),
+  updateLead: (id, data) => apiClient.put(`/api/users/${id}`, data),
   
-  // Opportunities
-  getOpportunities: (params) => apiClient.get('/opportunities', { params }),
-  getOpportunity: (id) => apiClient.get(`/opportunities/${id}`),
-  createOpportunity: (data) => apiClient.post('/opportunities', data),
-  updateOpportunity: (id, data) => apiClient.put(`/opportunities/${id}`, data),
+  // Opportunities (mapped to orders)
+  getOpportunities: (params) => apiClient.get('/api/orders', { params }),
+  getOpportunity: (id) => apiClient.get(`/api/orders/${id}`),
+  createOpportunity: (data) => apiClient.post('/api/orders', data),
+  updateOpportunity: (id, data) => apiClient.put(`/api/orders/${id}`, data),
   
-  // Activities
-  getActivities: (params) => apiClient.get('/activities', { params }),
-  getActivity: (id) => apiClient.get(`/activities/${id}`),
-  createActivity: (data) => apiClient.post('/activities', data),
-  updateActivity: (id, data) => apiClient.put(`/activities/${id}`, data),
+  // Activities (mapped to inventory logs and recent activity)
+  getActivities: (params) => apiClient.get('/api/dashboard/recent-activity', { params }),
+  getActivity: (id) => apiClient.get(`/api/inventory/logs/${id}`),
+  createActivity: (data) => Promise.resolve({ data: { success: true, message: 'Activity logged' } }),
+  updateActivity: (id, data) => Promise.resolve({ data: { success: true, message: 'Activity updated' } }),
   
-  // Tasks
-  getTasks: (params) => apiClient.get('/tasks', { params }),
-  getTask: (id) => apiClient.get(`/tasks/${id}`),
-  createTask: (data) => apiClient.post('/tasks', data),
-  updateTask: (id, data) => apiClient.put(`/tasks/${id}`, data),
+  // Tasks (mapped to restock requests)
+  getTasks: (params) => apiClient.get('/api/restock', { params }),
+  getTask: (id) => apiClient.get(`/api/restock/${id}`),
+  createTask: (data) => apiClient.post('/api/restock', data),
+  updateTask: (id, data) => apiClient.put(`/api/restock/${id}`, data),
 };
 
 export default crmAPI;

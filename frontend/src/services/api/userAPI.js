@@ -1,17 +1,43 @@
 import apiClient from './baseAPI';
 
+// MongoDB Backend User API
 export const userAPI = {
-  // Users
-  getUsers: (params) => apiClient.get('/auth/users', { params }),
-  getUser: (id) => apiClient.get(`/auth/users/${id}`),
-  getCurrentUser: () => apiClient.get('/auth/me'),
-  createUser: (data) => apiClient.post('/auth/register', data),
-  updateUser: (id, data) => apiClient.put(`/auth/users/${id}`, data),
-  deleteUser: (id) => apiClient.delete(`/auth/users/${id}`),
+  // Get all users
+  getUsers: (params = {}) => {
+    const { page = 1, limit = 50, role, search } = params;
+    return apiClient.get('/api/users', {
+      params: {
+        page,
+        limit,
+        ...(role && { role }),
+        ...(search && { search })
+      }
+    });
+  },
   
-  // User Roles & Permissions
-  updateUserRole: (id, role) => apiClient.patch(`/auth/users/${id}/role`, { role }),
-  updateUserPermissions: (id, permissions) => apiClient.patch(`/auth/users/${id}/permissions`, { permissions }),
+  // Get single user
+  getUser: (id) => apiClient.get(`/api/users/${id}`),
+  
+  // Get current user
+  getCurrentUser: () => apiClient.get('/api/auth/me'),
+  
+  // Create user (admin only)
+  createUser: (data) => apiClient.post('/api/users', data),
+  
+  // Update user
+  updateUser: (id, data) => apiClient.put(`/api/users/${id}`, data),
+  
+  // Delete user
+  deleteUser: (id) => apiClient.delete(`/api/users/${id}`),
+  
+  // Get user statistics
+  getStats: () => apiClient.get('/api/users/stats/summary'),
+  
+  // Legacy aliases
+  getUserProfile: (id) => apiClient.get(`/api/users/${id}`),
+  updateUserProfile: (id, data) => apiClient.put(`/api/users/${id}`, data),
+  updateUserRole: (id, role) => apiClient.put(`/api/users/${id}`, { role }),
+  updateUserPermissions: (id, permissions) => apiClient.put(`/api/users/${id}`, { permissions })
 };
 
 export default userAPI;

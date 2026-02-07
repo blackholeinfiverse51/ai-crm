@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import { AuthProvider } from './context/AuthContext';
+// MongoDB Backend Auth
+import { AuthProvider } from './context/MongoAuthContext';
 import { ROUTES } from './utils/constants';
 
 // Pages

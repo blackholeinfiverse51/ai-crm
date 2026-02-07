@@ -7,7 +7,7 @@ import Input from '../../components/common/forms/Input';
 import SocialLogin from '../../components/auth/SocialLogin';
 import PasswordStrength from '../../components/auth/PasswordStrength';
 import Alert from '../../components/common/ui/Alert';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/MongoAuthContext';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -79,11 +79,16 @@ const Signup = () => {
       
       setSuccess(true);
       setTimeout(() => {
-        navigate('/auth/login');
-      }, 3000);
+        navigate('/');
+      }, 2000);
     } catch (err) {
       console.error('Signup error:', err);
-      setError(err.message || 'Failed to create account. Please try again.');
+      // Check if registration is disabled
+      if (err.message && err.message.includes('Registration is disabled')) {
+        setError('Registration is disabled. Please contact your administrator to create an account.');
+      } else {
+        setError(err.message || 'Failed to create account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -151,6 +156,14 @@ const Signup = () => {
             Join thousands of businesses using AI-powered logistics
           </p>
         </div>
+
+        {/* Info Alert about registration being disabled */}
+        <Alert variant="warning">
+          <AlertCircle className="h-4 w-4" />
+          <span>
+            <strong>Note:</strong> Self-registration is currently disabled. If you need an account, please contact your system administrator at <strong>admin@company.com</strong>
+          </span>
+        </Alert>
 
         {error && (
           <Alert variant="destructive">

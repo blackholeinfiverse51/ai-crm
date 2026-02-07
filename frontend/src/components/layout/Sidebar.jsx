@@ -9,7 +9,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { cn } from '@/utils/helpers';
 import { ROUTES } from '@/utils/constants';
 import Button from '../common/ui/Button';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/MongoAuthContext';
 
 const navigation = [
   { name: 'Overview', icon: LayoutDashboard, path: ROUTES.DASHBOARD },

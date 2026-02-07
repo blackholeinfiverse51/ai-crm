@@ -1,18 +1,10 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/MongoAuthContext';
 import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
-  // DEVELOPMENT MODE: Bypass authentication
-  // Set to false when you want to enable authentication
-  const DEV_MODE_SKIP_AUTH = true;
-
-  if (DEV_MODE_SKIP_AUTH) {
-    return children;
-  }
 
   if (loading) {
     return (

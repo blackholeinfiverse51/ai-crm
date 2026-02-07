@@ -1,7 +1,7 @@
 import React from 'react';
 import { Menu, Search, Bell, Moon, Sun, User, LogOut, Settings, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/MongoAuthContext';
 import { cn } from '@/utils/helpers';
 import Button from '../common/ui/Button';
 import Badge from '../common/ui/Badge';
