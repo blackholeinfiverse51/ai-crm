@@ -9,6 +9,7 @@ import Card, { CardHeader, CardTitle, CardContent } from '../components/common/u
 import Button from '../components/common/ui/Button';
 import Input from '../components/common/forms/Input';
 import Badge from '../components/common/ui/Badge';
+import Alert from '../components/common/ui/Alert';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/common/ui/Table';
 import { LoadingSpinner } from '../components/common/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
@@ -22,6 +23,7 @@ export const Logistics = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   // Orders data
   const [orders, setOrders] = useState([]);
@@ -31,6 +33,9 @@ export const Logistics = () => {
 
   // Inventory data for chart
   const [inventoryData, setInventoryData] = useState([]);
+
+  // Low stock products (stockQuantity < minThreshold)
+  const [lowStockProducts, setLowStockProducts] = useState([]);
 
   // Agent activity data
   const [agentActivity, setAgentActivity] = useState([]);
@@ -64,6 +69,12 @@ export const Logistics = () => {
       try {
         const inventoryResponse = await productAPI.getProducts({ limit: 1000, bustCache: true });
         const products = inventoryResponse.data?.data?.products || [];
+
+        const lowStock = products
+          .filter(p => (p.stockQuantity ?? 0) < (p.minThreshold ?? 0))
+          .sort((a, b) => (a.stockQuantity ?? 0) - (b.stockQuantity ?? 0));
+        setLowStockProducts(lowStock);
+
         setInventoryData(products.slice(0, 15).map(p => ({
           ProductID: p.sku,
           CurrentStock: p.stockQuantity || 0
@@ -131,7 +142,30 @@ export const Logistics = () => {
   const handleRunProcurementAgent = async () => {
     setLoading(true);
     try {
-      await restockAPI.runProcurementAgent();
+      setError(null);
+      setSuccess(null);
+
+      const response = await restockAPI.runProcurementAgent();
+      const summary = response?.data?.data;
+
+      if (summary) {
+        const parts = [
+          `Low stock: ${summary.lowStockProducts ?? 0}`,
+          `Emailed: ${summary.emailed ?? 0}`,
+          `Missing supplier email: ${summary.skippedMissingSupplierEmail ?? 0}`,
+          `Already emailed: ${summary.skippedAlreadyEmailed ?? 0}`,
+          `Failures: ${summary.failures ?? 0}`
+        ];
+        setSuccess(`Procurement run completed. ${parts.join(' | ')}`);
+
+        if ((summary.failures ?? 0) > 0) {
+          const firstError = summary.results?.find(r => r.status === 'failed')?.error;
+          setError(firstError ? `Some emails failed: ${firstError}` : 'Some emails failed. Check SMTP configuration.');
+        }
+      } else {
+        setSuccess('Procurement run completed.');
+      }
+
       await fetchAllData();
     } catch (error) {
       console.error('Error running procurement agent:', error);
@@ -252,6 +286,20 @@ export const Logistics = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Success/Error Alerts */}
+      {success && (
+        <Alert variant="success" onClose={() => setSuccess(null)}>
+          <AlertCircle className="h-4 w-4 mr-2" />
+          {success}
+        </Alert>
+      )}
+      {error && (
+        <Alert variant="destructive" onClose={() => setError(null)}>
+          <AlertCircle className="h-4 w-4 mr-2" />
+          {error}
+        </Alert>
+      )}
+
       {/* Navigation Tabs */}
       <div className="flex items-center gap-6 border-b border-border pb-2">
         <button
@@ -366,6 +414,53 @@ export const Logistics = () => {
               variant="accent"
         />
       </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Low Stock Products
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>product</TableHead>
+                      <TableHead>sku</TableHead>
+                      <TableHead>stock</TableHead>
+                      <TableHead>threshold</TableHead>
+                      <TableHead>supplier email</TableHead>
+                      <TableHead>status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lowStockProducts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                          No low stock products
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      lowStockProducts.slice(0, 10).map((p) => (
+                        <TableRow key={p._id || p.sku}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.stockQuantity ?? 0}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.minThreshold ?? 0}</TableCell>
+                          <TableCell className="max-w-xs truncate">{p.supplier?.email || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant="warning">LOW</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -710,6 +805,50 @@ export const Logistics = () => {
       {activeTab === 'inventory' && (
         <div className="space-y-4">
           <h1 className="text-3xl font-heading font-bold tracking-tight">Inventory Status</h1>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Low Stock Products
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>product</TableHead>
+                      <TableHead>sku</TableHead>
+                      <TableHead>stock</TableHead>
+                      <TableHead>threshold</TableHead>
+                      <TableHead>supplier email</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lowStockProducts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                          No low stock products
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      lowStockProducts.slice(0, 10).map((p) => (
+                        <TableRow key={p._id || p.sku}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.stockQuantity ?? 0}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.minThreshold ?? 0}</TableCell>
+                          <TableCell className="max-w-xs truncate">{p.supplier?.email || '-'}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Current Stock Levels</CardTitle>
