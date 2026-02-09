@@ -12,8 +12,9 @@ export const crmAPI = {
   getAccount: (id) => apiClient.get(`/api/users/${id}`),
   createAccount: (data) => {
     // Transform CRM account data to User API format
-    // Supports creating `customer` and `manager` accounts from CRM management.
-    const role = data.account_type === 'manager' ? 'manager' : 'customer';
+    // Supports creating `admin`, `manager`, and `customer` accounts from CRM management.
+    const accountType = (data.account_type || 'customer').toLowerCase();
+    const role = accountType === 'admin' ? 'admin' : accountType === 'manager' ? 'manager' : 'customer';
     const userData = {
       name: data.name,
       email: data.email,

@@ -1076,6 +1076,7 @@ export const CRM = () => {
                 value={accountForm.account_type}
                 onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value })}
                 options={[
+                  { value: 'admin', label: 'Admin' },
                   { value: 'customer', label: 'Customer' },
                   { value: 'manager', label: 'Manager' },
                 ]}

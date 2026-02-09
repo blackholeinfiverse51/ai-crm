@@ -94,6 +94,53 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Keep API compatibility with existing auth pages/components
+  // (Some pages call this `signup`, others call it `register`.)
+  const signup = async ({ email, password, name, firstName, lastName, companyName }) => {
+    return register({ email, password, name, firstName, lastName, companyName });
+  };
+
+  const loginWithOAuth = async (provider) => {
+    setLoading(true);
+    try {
+      const result = await authService.signInWithOAuth(provider);
+      return result;
+    } catch (error) {
+      toast.error(error.message || 'OAuth login failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async (email) => {
+    setLoading(true);
+    try {
+      const result = await authService.resetPasswordForEmail(email);
+      toast.success('Password reset email sent');
+      return result;
+    } catch (error) {
+      toast.error(error.message || 'Password reset failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updatePassword = async (password) => {
+    setLoading(true);
+    try {
+      const result = await authService.updatePassword(password);
+      toast.success('Password updated');
+      return result;
+    } catch (error) {
+      toast.error(error.message || 'Password update failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -138,9 +185,13 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
+    signup,
+    loginWithOAuth,
     logout,
     refreshProfile,
     updateProfile,
+    resetPassword,
+    updatePassword,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
     isManager: user?.role === 'manager',
