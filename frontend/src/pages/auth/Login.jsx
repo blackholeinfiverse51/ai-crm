@@ -7,7 +7,6 @@ import Input from '../../components/common/forms/Input';
 import SocialLogin from '../../components/auth/SocialLogin';
 import Alert from '../../components/common/ui/Alert';
 import { useAuth } from '../../context/MongoAuthContext';
-import { isMockSupabase } from '../../lib/supabase';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -117,18 +116,6 @@ const Login = () => {
             Enter your credentials to continue
           </p>
         </div>
-
-        {isMockSupabase() && (
-          <Alert variant="default" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <div>
-              <p className="font-medium text-blue-900 dark:text-blue-100">Development Mode</p>
-              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                Supabase is not configured. You can login with any email/password to access the dashboard.
-              </p>
-            </div>
-          </Alert>
-        )}
 
         {error && (
           <Alert variant="destructive">

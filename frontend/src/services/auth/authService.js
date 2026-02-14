@@ -1,247 +1,124 @@
-import { supabase, isMockSupabase } from '@/lib/supabase'
+import { API_BASE_URL } from '@/utils/constants';
 
-// Dev mode: allow login without Supabase
-const DEV_MODE_ENABLED = true
-
+/**
+ * Authentication service using MongoDB backend
+ * All authentication is handled via the MongoDB backend API
+ */
 export const authService = {
-  // Sign up with email and password
+  // Sign up - MongoDB backend handles user creation
   async signUp({ email, password, firstName, lastName, companyName }) {
-    // In dev mode with mock Supabase, simulate success
-    if (isMockSupabase() && DEV_MODE_ENABLED) {
-      console.warn('Dev mode: Simulating signup (Supabase not configured)')
-      return {
-        user: {
-          id: 'dev-user-' + Date.now(),
-          email,
-          user_metadata: {
-            first_name: firstName,
-            last_name: lastName,
-            company_name: companyName,
-            full_name: `${firstName} ${lastName}`
-          }
-        },
-        session: {
-          access_token: 'dev-token',
-          user: {
-            id: 'dev-user-' + Date.now(),
-            email
-          }
-        }
-      }
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/verify-email`,
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          company_name: companyName,
-          full_name: `${firstName} ${lastName}`
-        }
-      }
-    })
-
-    if (error) throw error
-
-    // Create profile if signup successful
-    if (data.user) {
-      await this.createUserProfile(data.user.id, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         email,
-        first_name: firstName,
-        last_name: lastName,
-        company_name: companyName
+        password,
+        name: `${firstName} ${lastName}`,
+        role: 'customer'
       })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Registration failed');
     }
 
-    return data
+    const data = await response.json();
+    return {
+      user: data.user,
+      session: { access_token: data.token }
+    };
   },
 
   // Sign in with email and password
   async signIn({ email, password }) {
-    // In dev mode with mock Supabase, simulate successful login
-    if (isMockSupabase() && DEV_MODE_ENABLED) {
-      console.warn('Dev mode: Simulating login (Supabase not configured)')
-      return {
-        user: {
-          id: 'dev-user-' + Date.now(),
-          email,
-          user_metadata: {
-            full_name: 'Dev User'
-          }
-        },
-        session: {
-          access_token: 'dev-token',
-          user: {
-            id: 'dev-user-' + Date.now(),
-            email
-          }
-        }
-      }
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Login failed');
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-
-    if (error) throw error
-    return data
+    const data = await response.json();
+    return {
+      user: data.user,
+      session: { access_token: data.token }
+    };
   },
 
-  // Sign in with OAuth provider
+  // OAuth not implemented for MongoDB backend
   async signInWithOAuth(provider) {
-    // In dev mode with mock Supabase, show message
-    if (isMockSupabase() && DEV_MODE_ENABLED) {
-      throw new Error('OAuth login requires Supabase configuration. Please configure Supabase or use email/password login in dev mode.')
-    }
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    })
-
-    if (error) throw error
-    return data
+    throw new Error('OAuth login is not implemented in this version.');
   },
 
   // Sign out
   async signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    localStorage.removeItem('token');
+    return { error: null };
   },
 
-  // Send password reset email
+  // Password reset not implemented yet
   async resetPassword(email) {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`
-    })
-
-    if (error) throw error
-    return data
+    throw new Error('Password reset is not implemented yet.');
   },
 
-  // Update password
+  // Update password not implemented yet
   async updatePassword(newPassword) {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword
-    })
-
-    if (error) throw error
-    return data
+    throw new Error('Password update is not implemented yet.');
   },
 
-  // Get current session
+  // Get current session from localStorage
   async getSession() {
-    if (isMockSupabase() && DEV_MODE_ENABLED) {
-      return null // No session in dev mode
-    }
-    const { data: { session }, error } = await supabase.auth.getSession()
-    if (error) throw error
-    return session
+    const token = localStorage.getItem('token');
+    return token ? { access_token: token } : null;
   },
 
-  // Get current user
+  // Get current user from backend
   async getCurrentUser() {
-    if (isMockSupabase() && DEV_MODE_ENABLED) {
-      return null // No user in dev mode
-    }
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) throw error
-    return user
-  },
-
-  // Create user profile
-  async createUserProfile(userId, profileData) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert([
-        {
-          id: userId,
-          ...profileData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ])
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error creating profile:', error)
-      // Don't throw error as profile table might not exist yet
-      return null
-    }
-    return data
-  },
-
-  // Update user profile
-  async updateUserProfile(userId, updates) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  },
-
-  // Get user profile
-  async getUserProfile(userId) {
-    if (isMockSupabase() && DEV_MODE_ENABLED) {
-      // Return mock profile in dev mode immediately
-      return Promise.resolve({
-        id: userId,
-        email: 'dev@example.com',
-        first_name: 'Dev',
-        last_name: 'User',
-        company_name: 'Dev Company'
-      })
-    }
-
-    // Add timeout to prevent hanging
-    const queryPromise = supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Profile query timeout')), 2000)
-    )
+    const token = localStorage.getItem('token');
+    if (!token) return null;
 
     try {
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise])
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = not found, which is okay
-        throw error
-      }
-      return data
-    } catch (err) {
-      // If timeout or other error, return null instead of throwing
-      console.warn('getUserProfile error:', err)
-      return null
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      return data.user;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      return null;
     }
   },
 
-  // Resend verification email
-  async resendVerificationEmail(email) {
-    const { data, error } = await supabase.auth.resend({
-      type: 'signup',
-      email
-    })
+  // Profile methods not needed with MongoDB backend
+  async createUserProfile(userId, profileData) {
+    return null;
+  },
 
-    if (error) throw error
-    return data
+  async updateUserProfile(userId, updates) {
+    return null;
+  },
+
+  async getUserProfile(userId) {
+    return null;
+  },
+
+  // Email verification not implemented
+  async resendVerificationEmail(email) {
+    throw new Error('Email verification is not implemented yet.');
   }
 }
 

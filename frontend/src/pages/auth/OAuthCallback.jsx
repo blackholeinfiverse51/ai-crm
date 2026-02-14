@@ -6,8 +6,7 @@ const OAuthCallback = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Supabase automatically handles the OAuth callback
-    // Just redirect to the dashboard
+    // OAuth callback not implemented - redirect to dashboard
     setTimeout(() => {
       navigate('/');
     }, 2000);
