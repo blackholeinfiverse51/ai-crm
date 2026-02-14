@@ -17,6 +17,7 @@ import inventoryRoutes from './routes/inventory.js';
 import restockRoutes from './routes/restock.js';
 import dashboardRoutes from './routes/dashboard.js';
 import supplierRoutes from './routes/suppliers.js';
+import emsRoutes from './routes/ems.js';
 
 // Load environment variables
 dotenv.config();
@@ -98,6 +99,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/restock', restockRoutes);
+app.use('/api/ems', emsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/suppliers', supplierRoutes);
 

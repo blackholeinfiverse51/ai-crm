@@ -63,6 +63,15 @@ const restockRequestSchema = new mongoose.Schema({
 restockRequestSchema.index({ productId: 1, createdAt: -1 });
 restockRequestSchema.index({ status: 1 });
 
+// Virtual for emailSent status
+restockRequestSchema.virtual('emailSent').get(function() {
+  return !!this.emailSentAt;
+});
+
+// Ensure virtuals are included in JSON
+restockRequestSchema.set('toJSON', { virtuals: true });
+restockRequestSchema.set('toObject', { virtuals: true });
+
 const RestockRequest = mongoose.model('RestockRequest', restockRequestSchema);
 
 export default RestockRequest;
