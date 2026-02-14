@@ -22,7 +22,7 @@ export const Settings = () => {
 
   // Settings state
   const [generalSettings, setGeneralSettings] = useState({
-    appName: 'AI CRM System',
+    appName: 'SETU',
     timezone: 'UTC',
     language: 'en',
     dateFormat: 'YYYY-MM-DD',
@@ -52,7 +52,7 @@ export const Settings = () => {
     smtpUser: '',
     smtpPassword: '',
     fromEmail: '',
-    fromName: 'AI CRM System',
+    fromName: 'SETU',
   });
 
   const [databaseSettings, setDatabaseSettings] = useState({

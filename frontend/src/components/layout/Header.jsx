@@ -63,7 +63,7 @@ export const Header = ({ onMenuClick, isDark, onThemeToggle }) => {
           </Button>
           
           <h2 className="text-lg sm:text-2xl font-heading font-bold tracking-tight truncate max-w-[150px] sm:max-w-none">
-            <span className="hidden sm:inline">AI Agent Logistics System</span>
+            <span className="hidden sm:inline">SETU</span>
             <span className="sm:hidden">AI System</span>
           </h2>
         </div>

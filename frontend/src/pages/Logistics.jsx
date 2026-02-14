@@ -889,7 +889,7 @@ export const Logistics = () => {
       {/* Agents Section */}
       {activeTab === 'agents' && (
         <div className="space-y-4">
-          <h1 className="text-3xl font-heading font-bold tracking-tight">AI Agent Controls</h1>
+          <h1 className="text-3xl font-heading font-bold tracking-tight">SETU Controls</h1>
           
           <div className="flex items-center gap-4">
             <Button onClick={handleRunProcurementAgent} disabled={loading}>

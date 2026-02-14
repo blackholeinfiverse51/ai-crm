@@ -114,7 +114,7 @@ const Signup = () => {
     return (
       <AuthLayout
         title="Account Created!"
-        subtitle="Welcome to AI Agent Logistics System"
+        subtitle="Welcome to SETU"
       >
         <div className="text-center space-y-6">
           <div className="w-20 h-20 rounded-full gradient-primary shadow-glow-primary flex items-center justify-center mx-auto">

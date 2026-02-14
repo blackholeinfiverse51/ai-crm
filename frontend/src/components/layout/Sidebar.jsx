@@ -89,7 +89,7 @@ export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapseToggle }) => 
           {!isCollapsed && (
             <div className="gradient-primary rounded-lg px-3 py-2 shadow-glow-primary animate-scale-in">
               <h1 className="text-lg font-heading font-bold text-primary-foreground">
-                AI Agent
+                SETU
               </h1>
             </div>
           )}

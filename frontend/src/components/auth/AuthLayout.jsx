@@ -13,8 +13,8 @@ const AuthLayout = ({ children, title, subtitle }) => {
                 <Bot className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-heading font-bold tracking-tight">AI Agent</h1>
-                <p className="text-muted-foreground">Logistics System</p>
+                <h1 className="text-3xl font-heading font-bold tracking-tight">SETU</h1>
+                <p className="text-muted-foreground">CRM System</p>
               </div>
             </div>
             
@@ -70,8 +70,8 @@ const AuthLayout = ({ children, title, subtitle }) => {
                 <Bot className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-heading font-bold tracking-tight">AI Agent</h1>
-                <p className="text-sm text-muted-foreground">Logistics System</p>
+                <h1 className="text-2xl font-heading font-bold tracking-tight">SETU</h1>
+                <p className="text-sm text-muted-foreground">CRM System</p>
               </div>
             </div>
 
@@ -80,7 +80,7 @@ const AuthLayout = ({ children, title, subtitle }) => {
 
           {/* Footer */}
           <p className="text-center text-sm text-muted-foreground mt-6">
-            © 2025 AI Agent Logistics System. All rights reserved.
+            © 2025 SETU. All rights reserved.
           </p>
         </div>
       </div>

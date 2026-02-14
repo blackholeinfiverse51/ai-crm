@@ -88,7 +88,7 @@ const Login = () => {
           </div>
           <div>
             <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tight text-white">
-              AI Agent Logistics System
+              SETU
             </h1>
             <p className="mt-3 text-base md:text-lg text-slate-300">
               Preparing your intelligent logistics workspace&hellip;
